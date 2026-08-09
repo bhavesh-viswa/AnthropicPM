@@ -35,22 +35,27 @@ agree.
 
 - **See** — spend & value by group, user, and product: total net spend,
   **% spend verified** (the north star — spend tied to a shipped, lasting
-  PR), % autonomous spend, a cost-per-PR-merged chart by group, and a
-  searchable per-user table. A **product filter** (All / Claude Code / Chat
-  / Cowork) scopes the summary cards and table to one product at a time. A
-  standalone **ROI calculator** always shows all three products side by
-  side, with admin-editable time-saved and hourly-rate assumptions that
-  recompute an estimated dollar value live.
-- **Set** — the group & user spend-limits table. Each row shows the limit
-  next to the ROI it bought this month and a suggested limit derived from
-  cost per PR merged, plus the effective-limit resolver's logic spelled out
-  inline (individual > group > org default, with a live toggle for how
+  PR), % autonomous spend, and a cost-per-PR-merged chart by group. A
+  **product filter** (All / Claude Code / Chat / Cowork) scopes the summary
+  cards and table to one product at a time. A standalone **ROI calculator**
+  always shows all three products side by side, with admin-editable
+  time-saved and hourly-rate assumptions that recompute an estimated dollar
+  value live. The per-user table breaks spend out by product (hover a
+  figure to see that product's verified-output count — PRs merged /
+  conversations / sessions) and ends with an **Est. value** column, shown
+  in red whenever a user's estimated value falls below what they spent —
+  the app's passive value-aware signal, in place of an active per-user
+  action.
+- **Set** — the group & user spend-limits table. Every column header has a
+  hover definition. Each row shows the limit next to the ROI it bought this
+  month, a suggested limit derived from cost per PR merged, and an
+  **Est. value** column, plus the effective-limit resolver's logic spelled
+  out inline (individual > group > org default, with a live toggle for how
   multi-group membership resolves).
 - **Verify** — the credit-request queue. Every pending request shows the
-  requester's realized ROI (cost per PR merged, revert rate) next to the
-  ask, an **auto-approve if ROI is top-decile** toggle, and — for a flagged
-  high-revert autonomous agent — a **throttle this user** action with a
-  projected spend-saved-vs-outcomes-protected estimate.
+  requester's realized ROI (cost per PR merged, revert rate, **Est.
+  value** — again flagged red if it's below their MTD spend) next to the
+  ask, plus an **auto-approve if ROI is top-decile** toggle.
 
 ## Data model
 
@@ -94,10 +99,12 @@ MTD figures don't drift with wall-clock time).
   randomized around per-archetype parameters.
 - The ROI calculator's "verified output" count has no dedicated field in the
   seed schema for Chat/Cowork (unlike Claude Code, where a merged PR is a
-  real countable event) — `total_requests` for that product stands in as a
-  proxy for "conversations" / "sessions." The per-product time-saved and
-  hourly-rate defaults are illustrative industry-standard assumptions, fully
-  editable by the admin.
+  real countable event) — `total_requests` for that product is divided by
+  an assumed requests-per-unit factor (20 for Chat, 30 for Cowork) to
+  approximate a "conversations" / "sessions" count, since one real
+  conversation or session spans many individual requests. The per-product
+  time-saved and hourly-rate defaults are illustrative industry-standard
+  assumptions, fully editable by the admin.
 
 ### Metrics (`src/lib/metrics.ts`)
 
@@ -123,18 +130,31 @@ MTD figures don't drift with wall-clock time).
 ### ROI calculator (`src/lib/roi.ts`)
 
 Per product (Claude Code / Chat / Cowork), `estimated_value_usd` = verified
-output count × (minutes saved per unit ÷ 60) × hourly rate. Defaults:
+output count × (minutes saved per unit ÷ 60) × hourly rate; `totalEstimatedValueUsd`
+sums that across all three products for a single "Est. value" figure.
+Defaults:
 
 | Product | Unit | Minutes saved / unit | Hourly rate |
 |---|---|---|---|
-| Claude Code | PR merged | 150 | $85 |
+| Claude Code | PR merged | 150 | $65 |
 | Chat | conversation | 4 | $60 |
 | Cowork | session | 30 | $75 |
 
 (The Code and Chat minute figures intentionally match the reference
-Analytics "Estimated time saved" panel's own example numbers.) Both fields
-are editable per product in the See tab's ROI Calculator card; edits are
-stored as overlay overrides and recompute the dollar value immediately.
+Analytics "Estimated time saved" panel's own example numbers. The hourly
+rates are calibrated, not arbitrary — see below.) Both fields are editable
+per product in the See tab's ROI Calculator card; edits are stored as
+overlay overrides and recompute the dollar value immediately everywhere
+it's shown (See, Set, Verify).
+
+The Claude Code hourly rate is set to $65 (rather than a more generous
+$85+) specifically so the "below cost" highlight has a real example in the
+seeded data: at these defaults, Felix is the only one of the 8 users whose
+total estimated value (Code + Chat + Cowork) comes in under his net spend
+(0.98×) — everyone else clears at least 1.7×. Raising the rate lifts
+everyone's ratio roughly proportionally, so it's easy to push Felix back
+above 1× by editing the assumption live in the ROI Calculator — a good way
+to show the highlight is a real function of the inputs, not hardcoded.
 
 ## The seeded scenario
 
@@ -155,40 +175,41 @@ Payments' $3,000 group limit regardless of that setting.
 1. **See** — land on the north-star card, **% Spend Verified**. Filter to
    Payments: its cost-per-PR-merged bar (~$53) is clearly the cheapest of
    the three, tagged "Best ROI." Growth is the most expensive (~$126,
-   "Needs attention") — Felix's row in the user table shows a 55.0% revert
-   rate at a glance. Switch the product filter to Chat or Cowork and watch
-   the summary cards and table rescope instantly; scroll to the ROI
-   Calculator and edit Claude Code's hourly rate to see the estimated
-   dollar value recompute live.
+   "Needs attention"). Switch the product filter to Chat or Cowork and
+   watch the summary cards rescope instantly; edit Claude Code's hourly
+   rate in the ROI Calculator and see the estimated dollar value recompute
+   live. Scroll to the user table: hover any product-spend figure to see
+   its unit count (PRs merged / conversations / sessions), and note
+   Felix's **Est. value is the only one shown in red** — the sole user
+   whose estimated value doesn't cover what he spent, right next to his
+   55.0% revert rate.
 2. **Set** — Payments is sitting at **exactly 80% of its $3,000 budget**,
-   with a suggested limit that reflects its strong cost-per-PR-merged.
-   Toggle "Lower limit wins" and watch Gabe's resolved limit flip live from
-   Payments' $3,000 to Platform's $1,500 — the resolver logic is explicit,
-   not hidden.
+   with a suggested limit that reflects its strong cost-per-PR-merged and
+   an Est. value column showing what that budget is actually buying. Hover
+   any column header for its definition. Toggle "Lower limit wins" and
+   watch Gabe's resolved limit flip live from Payments' $3,000 to
+   Platform's $1,500 — the resolver logic is explicit, not hidden.
 3. **Verify** — Carol's pending credit request sits right next to her
-   realized ROI (~$48/PR merged, 53% spend verified) and a "Top decile ROI"
-   badge. Flip **Auto-approve if ROI in top decile** — her request is
-   approved instantly with a toast explaining why. Felix's request, by
-   contrast, is flagged as a high-revert autonomous agent and correctly
-   never auto-approves.
-4. **Throttle** — on Felix's card, click **Throttle agent**. The dialog
-   shows the projected impact: throttling 70% of his autonomous usage saves
-   roughly $1,700 over the 2-month window while risking only ~4 lasting PRs,
-   because just ~13% of his autonomous-tied PRs ever lasted 30 days. Apply
-   it — a "Throttled" badge follows him to the See tab, and the rest of
-   Growth (Dave, Erin) is untouched.
+   realized ROI (~$48/PR merged, 53% spend verified, and a comfortably
+   positive Est. value) and a "Top decile ROI" badge. Flip **Auto-approve
+   if ROI in top decile** — her request is approved instantly with a toast
+   explaining why. Felix's request, by contrast, is flagged as a
+   high-revert autonomous agent, its Est. value shown in red, and it
+   correctly never auto-approves.
 
 **The point**: Payments is 80% through budget but every dollar maps to a
 shipped, lasting PR — auto-approve its credit request. Growth's autonomous
-agent is burning credits at a 55% revert rate — throttle that agent, not the
-team. Both decisions made on one screen, next to the ROI, instead of a blind
-yes/no in a separate settings tab.
+agent is burning credits at a 55% revert rate, and it's the one line in the
+whole app where estimated value doesn't cover the spend — visible at a
+glance, everywhere his numbers show up, without a separate action needed to
+surface it. Both decisions made on one screen, next to the ROI, instead of
+a blind yes/no in a separate settings tab.
 
 ## Stack
 
 Vite + React + TypeScript + Tailwind v4 + hand-rolled shadcn/ui-style
 components (Radix primitives) + Recharts. Fully client-side; state is a
 `useReducer` overlay patched on top of immutable seed data (limit edits,
-approvals, throttle actions, toggles), optionally persisted to
+approvals, ROI assumption edits, toggles), optionally persisted to
 `localStorage` so a live demo survives a refresh. Use **Reset demo** in the
 banner to clear it.

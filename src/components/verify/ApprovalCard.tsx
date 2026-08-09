@@ -1,14 +1,15 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { RoiPill } from '@/components/shared/RoiPill'
-import { ThrottleButton } from '@/components/throttle/ThrottleButton'
 import { getDisplayName, seedData } from '@/data/seed'
 import type { CreditRequest } from '@/data/types'
 import { JULY_RANGE } from '@/lib/dateRanges'
 import { formatCurrency, formatDate, formatPercent } from '@/lib/format'
 import { allUserEmails, costPerMergedPR, isTopDecileRoi, pctSpendVerified, revertRate } from '@/lib/metrics'
-import { isFlaggedAutonomousAgent } from '@/lib/throttle'
+import { isFlaggedAutonomousAgent } from '@/lib/flags'
+import { totalEstimatedValueUsd } from '@/lib/roi'
 import { useAppState } from '@/state/AppStateContext'
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -20,14 +21,38 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
+function EstValueMetric({ value, belowCost }: { value: number; belowCost: boolean }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-xs text-muted-foreground">Est. value</span>
+      {belowCost ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="w-fit cursor-help font-semibold text-critical underline decoration-dotted underline-offset-4">
+              {formatCurrency(value)}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            Estimated value is below this requester's MTD spend — this spend isn't paying for itself
+            yet.
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <span className="font-medium">{formatCurrency(value)}</span>
+      )}
+    </div>
+  )
+}
+
 const STATUS_VARIANT = { approved: 'good', denied: 'critical' } as const
 
 export function ApprovalCard({ request }: { request: CreditRequest }) {
-  const { setRequestStatus } = useAppState()
+  const { overlay, setRequestStatus } = useAppState()
   const scope = { level: 'user' as const, id: request.user_email }
   const cpo = costPerMergedPR(seedData, scope, JULY_RANGE)
   const revert = revertRate(seedData, scope, JULY_RANGE)
   const verified = pctSpendVerified(seedData, scope, JULY_RANGE)
+  const estValue = totalEstimatedValueUsd(seedData, scope, overlay.roiOverrides, JULY_RANGE)
   const topDecile = isTopDecileRoi(seedData, request.user_email, allUserEmails(seedData))
   const flagged = isFlaggedAutonomousAgent(seedData, request.user_email)
 
@@ -37,7 +62,6 @@ export function ApprovalCard({ request }: { request: CreditRequest }) {
         <div className="flex flex-1 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{getDisplayName(request.user_email)}</span>
-            <Badge variant="outline">{request.current_seat}</Badge>
             {topDecile && <RoiPill tone="good" label="Top decile ROI" />}
             {flagged && <RoiPill tone="critical" label="Flagged autonomous agent" />}
             {request.status !== 'pending' && (
@@ -47,16 +71,16 @@ export function ApprovalCard({ request }: { request: CreditRequest }) {
           <span className="text-xs text-muted-foreground">
             {request.user_email} · requested {formatDate(request.requested_at)}
           </span>
-          <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
+          <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-5">
             <Metric label="MTD spend" value={formatCurrency(request.mtd_spend_usd)} />
             <Metric label="Cost / PR merged" value={cpo === null ? 'N/A' : formatCurrency(cpo)} />
             <Metric label="Revert rate" value={formatPercent(revert, 0)} />
             <Metric label="% Spend verified" value={formatPercent(verified, 0)} />
+            <EstValueMetric value={estValue} belowCost={estValue < request.mtd_spend_usd} />
           </div>
         </div>
         {request.status === 'pending' && (
           <div className="flex shrink-0 flex-wrap justify-end gap-2 sm:self-center">
-            {flagged && <ThrottleButton userEmail={request.user_email} />}
             <Button size="sm" variant="outline" onClick={() => setRequestStatus(request.request_id, 'denied')}>
               Deny
             </Button>

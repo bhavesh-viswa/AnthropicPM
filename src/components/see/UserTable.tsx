@@ -9,25 +9,39 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { SearchInput } from '@/components/shared/SearchInput'
 import { EmptyState } from '@/components/shared/EmptyState'
-import { ThrottleButton } from '@/components/throttle/ThrottleButton'
 import { getDisplayName, seedData } from '@/data/seed'
+import type { Product } from '@/data/types'
 import { formatCurrency, formatPercent } from '@/lib/format'
 import { costPerMergedPR, pctSpendVerified, revertRate, scopedUserEmails, totalNetSpend } from '@/lib/metrics'
-import { isFlaggedAutonomousAgent } from '@/lib/throttle'
-import { isThrottled, useAppState } from '@/state/AppStateContext'
+import { ROI_PRODUCTS, totalEstimatedValueUsd, verifiedOutputCount } from '@/lib/roi'
+import { useAppState } from '@/state/AppStateContext'
 import type { MetricScope } from '@/lib/metrics'
+
+interface ProductBreakdown {
+  spend: number
+  count: number
+}
 
 interface UserRow {
   email: string
   name: string
   groups: string[]
   totalSpend: number
+  productSpend: Record<Product, ProductBreakdown>
   costPerOutcome: number | null
   pctVerified: number
   revert: number
-  flagged: boolean
+  estValue: number
+}
+
+function unitCountLabel(product: Product, count: number): string {
+  const rounded = Math.round(count)
+  if (product === 'Claude Code') return `${rounded} PR${rounded === 1 ? '' : 's'} merged`
+  if (product === 'Chat') return `${rounded} conversation${rounded === 1 ? '' : 's'}`
+  return `${rounded} session${rounded === 1 ? '' : 's'}`
 }
 
 export function UserTable({ scope }: { scope: MetricScope }) {
@@ -40,18 +54,28 @@ export function UserTable({ scope }: { scope: MetricScope }) {
     () =>
       emails.map((email) => {
         const userScope: MetricScope = { level: 'user', id: email, product: scope.product }
+        const productSpend = Object.fromEntries(
+          ROI_PRODUCTS.map((product) => [
+            product,
+            {
+              spend: totalNetSpend(seedData, { level: 'user', id: email, product }),
+              count: verifiedOutputCount(seedData, { level: 'user', id: email }, product),
+            },
+          ]),
+        ) as Record<Product, ProductBreakdown>
         return {
           email,
           name: getDisplayName(email),
           groups: seedData.groupMembers.filter((m) => m.user_email === email).map((m) => m.group_name),
           totalSpend: totalNetSpend(seedData, userScope),
+          productSpend,
           costPerOutcome: costPerMergedPR(seedData, userScope),
           pctVerified: pctSpendVerified(seedData, userScope),
           revert: revertRate(seedData, userScope),
-          flagged: isFlaggedAutonomousAgent(seedData, email),
+          estValue: totalEstimatedValueUsd(seedData, { level: 'user', id: email }, overlay.roiOverrides),
         }
       }),
-    [emails, scope.product],
+    [emails, scope.product, overlay.roiOverrides],
   )
 
   const filtered = rows
@@ -78,50 +102,77 @@ export function UserTable({ scope }: { scope: MetricScope }) {
                 <TableHead>User</TableHead>
                 <TableHead>Group(s)</TableHead>
                 <TableHead className="text-right">Net spend</TableHead>
+                {ROI_PRODUCTS.map((product) => (
+                  <TableHead key={product} className="text-right">
+                    {product} spend
+                  </TableHead>
+                ))}
                 <TableHead className="text-right">Cost / PR merged</TableHead>
                 <TableHead className="text-right">% Verified</TableHead>
                 <TableHead className="text-right">Revert rate</TableHead>
-                <TableHead />
+                <TableHead className="text-right">Est. value</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((row) => (
-                <TableRow key={row.email}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{row.name}</span>
-                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        {row.email}
-                        {isThrottled(overlay, row.email) && (
-                          <Badge variant="warning" className="ml-1">
-                            Throttled
+              {filtered.map((row) => {
+                const belowCost = row.estValue < row.totalSpend
+                return (
+                  <TableRow key={row.email}>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{row.name}</span>
+                        <span className="text-xs text-muted-foreground">{row.email}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {row.groups.map((g) => (
+                          <Badge key={g} variant="outline">
+                            {g}
                           </Badge>
-                        )}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {row.groups.map((g) => (
-                        <Badge key={g} variant="outline">
-                          {g}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">{formatCurrency(row.totalSpend)}</TableCell>
-                  <TableCell className="text-right">
-                    {row.costPerOutcome === null ? 'N/A' : formatCurrency(row.costPerOutcome)}
-                  </TableCell>
-                  <TableCell className="text-right">{formatPercent(row.pctVerified)}</TableCell>
-                  <TableCell className="text-right">{formatPercent(row.revert)}</TableCell>
-                  <TableCell>
-                    {row.flagged && !isThrottled(overlay, row.email) && (
-                      <ThrottleButton userEmail={row.email} />
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">{formatCurrency(row.totalSpend)}</TableCell>
+                    {ROI_PRODUCTS.map((product) => (
+                      <TableCell key={product} className="text-right">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help underline decoration-dotted underline-offset-4">
+                              {formatCurrency(row.productSpend[product].spend)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {unitCountLabel(product, row.productSpend[product].count)}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right">
+                      {row.costPerOutcome === null ? 'N/A' : formatCurrency(row.costPerOutcome)}
+                    </TableCell>
+                    <TableCell className="text-right">{formatPercent(row.pctVerified)}</TableCell>
+                    <TableCell className="text-right">{formatPercent(row.revert)}</TableCell>
+                    <TableCell className="text-right">
+                      {belowCost ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help font-semibold text-critical underline decoration-dotted underline-offset-4">
+                              {formatCurrency(row.estValue)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Estimated value is below this user's net spend — this spend isn't paying
+                            for itself yet.
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        <span className="font-medium">{formatCurrency(row.estValue)}</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         )}

@@ -145,19 +145,41 @@ perUser
   })
 
 console.log('\n=== ROI calculator defaults (See tab, org scope, full window) ===')
+const REQUESTS_PER_UNIT: Partial<Record<SpendRow['product'], number>> = { Chat: 20, Cowork: 30 }
 const ROI_DEFAULTS: { product: SpendRow['product']; unit: string; minutes: number; hourlyRate: number }[] = [
-  { product: 'Claude Code', unit: 'PR merged', minutes: 150, hourlyRate: 85 },
+  { product: 'Claude Code', unit: 'PR merged', minutes: 150, hourlyRate: 65 },
   { product: 'Chat', unit: 'conversation', minutes: 4, hourlyRate: 60 },
   { product: 'Cowork', unit: 'session', minutes: 30, hourlyRate: 75 },
 ]
+function roiOutputCount(product: SpendRow['product'], rows: SpendRow[]): number {
+  if (product === 'Claude Code') {
+    return matchedOutcomesFor(rows.filter(isCode)).filter((o) => o.state === 'merged').length
+  }
+  const totalRequests = rows.filter((r) => r.product === product).reduce((s, r) => s + r.total_requests, 0)
+  return totalRequests / (REQUESTS_PER_UNIT[product] ?? 1)
+}
+function roiValue(rows: SpendRow[]): number {
+  return ROI_DEFAULTS.reduce((sum, { product, minutes, hourlyRate }) => {
+    const count = roiOutputCount(product, rows)
+    return sum + (count * minutes) / 60 * hourlyRate
+  }, 0)
+}
 for (const { product, unit, minutes, hourlyRate } of ROI_DEFAULTS) {
-  const productRows = spendRows.filter((r) => r.product === product)
-  const count =
-    product === 'Claude Code'
-      ? matchedOutcomesFor(productRows).filter((o) => o.state === 'merged').length
-      : productRows.reduce((s, r) => s + r.total_requests, 0)
+  const count = roiOutputCount(product, spendRows)
   const value = ((count * minutes) / 60) * hourlyRate
   console.log(
-    `${product}: ${count.toLocaleString()} ${unit}(s) × ${minutes} min × $${hourlyRate}/hr = $${value.toFixed(2)} estimated value`,
+    `${product}: ${Math.round(count).toLocaleString()} ${unit}(s) × ${minutes} min × $${hourlyRate}/hr = $${value.toFixed(2)} estimated value`,
+  )
+}
+
+console.log('\n=== Est. value vs net spend, per user (below-cost highlight check) ===')
+for (const u of USERS) {
+  const rows = spendRows.filter((r) => r.user_email === u.user_email)
+  const spend = rows.reduce((s, r) => s + r.total_net_spend_usd, 0)
+  const value = roiValue(rows)
+  console.log(
+    `${u.display_name}: spend=$${spend.toFixed(2)} value=$${value.toFixed(2)} ratio=${(value / spend).toFixed(2)}x${
+      value < spend ? '  <-- BELOW COST' : ''
+    }`,
   )
 }

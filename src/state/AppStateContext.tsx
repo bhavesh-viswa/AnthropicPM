@@ -12,7 +12,6 @@ import { effectiveRoiAssumption } from '@/lib/roi'
 export interface Overlay {
   limitOverrides: LimitOverrideMap
   requestStatusOverrides: Record<string, RequestStatus>
-  throttled: Record<string, { throttlePct: number; appliedAt: string }>
   autoApproveTopDecile: boolean
   bannerDismissed: boolean
   multiGroupResolutionOverride: MultiGroupResolution | null
@@ -24,7 +23,6 @@ const STORAGE_KEY = 'spend-controls-demo-overlay-v1'
 const initialOverlay: Overlay = {
   limitOverrides: {},
   requestStatusOverrides: {},
-  throttled: {},
   autoApproveTopDecile: false,
   bannerDismissed: false,
   multiGroupResolutionOverride: null,
@@ -34,7 +32,6 @@ const initialOverlay: Overlay = {
 type Action =
   | { type: 'SET_LIMIT'; scope: 'org' | 'group' | 'user'; target: string; amount: number }
   | { type: 'SET_REQUEST_STATUS'; requestId: string; status: RequestStatus }
-  | { type: 'APPLY_THROTTLE'; userEmail: string; throttlePct: number; appliedAt: string }
   | { type: 'SET_AUTO_APPROVE'; enabled: boolean }
   | { type: 'SET_MULTI_GROUP_RESOLUTION'; resolution: MultiGroupResolution }
   | { type: 'SET_ROI_ASSUMPTION'; product: Product; field: RoiOverrideField; value: number }
@@ -57,14 +54,6 @@ function reducer(state: Overlay, action: Action): Overlay {
         requestStatusOverrides: {
           ...state.requestStatusOverrides,
           [action.requestId]: action.status,
-        },
-      }
-    case 'APPLY_THROTTLE':
-      return {
-        ...state,
-        throttled: {
-          ...state.throttled,
-          [action.userEmail]: { throttlePct: action.throttlePct, appliedAt: action.appliedAt },
         },
       }
     case 'SET_AUTO_APPROVE':
@@ -107,7 +96,6 @@ interface AppStateValue {
   dispatch: Dispatch<Action>
   setLimit: (scope: 'org' | 'group' | 'user', target: string, amount: number) => void
   setRequestStatus: (requestId: string, status: RequestStatus) => void
-  applyThrottle: (userEmail: string, throttlePct: number) => void
   setAutoApprove: (enabled: boolean) => void
   setMultiGroupResolution: (resolution: MultiGroupResolution) => void
   setRoiAssumption: (product: Product, field: RoiOverrideField, value: number) => void
@@ -135,13 +123,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setLimit: (scope, target, amount) => dispatch({ type: 'SET_LIMIT', scope, target, amount }),
       setRequestStatus: (requestId, status) =>
         dispatch({ type: 'SET_REQUEST_STATUS', requestId, status }),
-      applyThrottle: (userEmail, throttlePct) =>
-        dispatch({
-          type: 'APPLY_THROTTLE',
-          userEmail,
-          throttlePct,
-          appliedAt: new Date().toISOString().slice(0, 10),
-        }),
       setAutoApprove: (enabled) => dispatch({ type: 'SET_AUTO_APPROVE', enabled }),
       setMultiGroupResolution: (resolution) =>
         dispatch({ type: 'SET_MULTI_GROUP_RESOLUTION', resolution }),
@@ -169,10 +150,6 @@ export function getEffectiveCreditRequests(data: SeedData, overlay: Overlay): Cr
     const override = overlay.requestStatusOverrides[cr.request_id]
     return override ? { ...cr, status: override } : cr
   })
-}
-
-export function isThrottled(overlay: Overlay, userEmail: string): boolean {
-  return userEmail in overlay.throttled
 }
 
 export function getEffectiveSettings(data: SeedData, overlay: Overlay): Settings {

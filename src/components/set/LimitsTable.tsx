@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { ColumnHeaderTooltip } from '@/components/shared/ColumnHeaderTooltip'
 import { getDisplayName, seedData } from '@/data/seed'
 import type { LimitScope } from '@/data/types'
 import { JULY_RANGE } from '@/lib/dateRanges'
@@ -15,10 +16,20 @@ import {
   type MetricScope,
   type ResolvedLimit,
 } from '@/lib/metrics'
+import { totalEstimatedValueUsd } from '@/lib/roi'
 import { useAppState, withOverlaySettings } from '@/state/AppStateContext'
 import { LimitEditCell } from './LimitEditCell'
 import { ResolverExplanation } from './ResolverExplanation'
-import { SuggestedLimitTooltip } from './SuggestedLimitTooltip'
+
+const COLUMN_DEFINITIONS = {
+  scope: 'Whether this limit applies org-wide as the default, to a whole group, or to one individual.',
+  limit: 'The monthly spend cap for this scope. Click the value to edit it.',
+  julSpend: "Net spend attributable to this scope in July, the current month-to-date period.",
+  pctOfBudget: 'July spend as a percentage of the limit. "No cap set" when this scope has no group-level limit of its own.',
+  costPerPr: 'Claude Code net spend ÷ PRs merged this scope produced in July.',
+  suggestedLimit: 'Cost per PR merged × PRs merged this scope × 1.15 headroom — what it costs to sustain this month’s output going forward, not a reward for good behavior.',
+  estValue: 'Estimated dollar value delivered this month (Claude Code + Chat + Cowork combined), using the ROI calculator assumptions from the See tab.',
+}
 
 interface LimitRow {
   scope: LimitScope
@@ -111,12 +122,27 @@ export function LimitsTable() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Scope</TableHead>
-              <TableHead className="text-right">Limit</TableHead>
-              <TableHead className="text-right">Jul spend</TableHead>
-              <TableHead className="text-right">% of budget</TableHead>
-              <TableHead className="text-right">Cost / PR merged</TableHead>
-              <TableHead className="text-right">Suggested limit</TableHead>
+              <TableHead>
+                <ColumnHeaderTooltip label="Scope" definition={COLUMN_DEFINITIONS.scope} />
+              </TableHead>
+              <TableHead className="text-right">
+                <ColumnHeaderTooltip label="Limit" definition={COLUMN_DEFINITIONS.limit} />
+              </TableHead>
+              <TableHead className="text-right">
+                <ColumnHeaderTooltip label="Jul spend" definition={COLUMN_DEFINITIONS.julSpend} />
+              </TableHead>
+              <TableHead className="text-right">
+                <ColumnHeaderTooltip label="% of budget" definition={COLUMN_DEFINITIONS.pctOfBudget} />
+              </TableHead>
+              <TableHead className="text-right">
+                <ColumnHeaderTooltip label="Cost / PR merged" definition={COLUMN_DEFINITIONS.costPerPr} />
+              </TableHead>
+              <TableHead className="text-right">
+                <ColumnHeaderTooltip label="Suggested limit" definition={COLUMN_DEFINITIONS.suggestedLimit} />
+              </TableHead>
+              <TableHead className="text-right">
+                <ColumnHeaderTooltip label="Est. value" definition={COLUMN_DEFINITIONS.estValue} />
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -136,6 +162,12 @@ export function LimitsTable() {
                   : totalNetSpend(seedData, row.metricScope, JULY_RANGE)
               const cpo = costPerMergedPR(seedData, row.metricScope, JULY_RANGE)
               const suggested = suggestedLimit(seedData, row.metricScope, JULY_RANGE)
+              const estValue = totalEstimatedValueUsd(
+                seedData,
+                row.metricScope,
+                overlay.roiOverrides,
+                JULY_RANGE,
+              )
               // An unset group has no real group-level cap to measure
               // against — comparing its combined spend to the per-user org
               // default would overstate how "over budget" it looks.
@@ -190,7 +222,10 @@ export function LimitsTable() {
                     {cpo === null ? 'N/A' : formatCurrency(cpo)}
                   </TableCell>
                   <TableCell className="text-right align-top">
-                    <SuggestedLimitTooltip value={suggested} />
+                    {suggested === null ? 'N/A' : formatCurrency(suggested)}
+                  </TableCell>
+                  <TableCell className="text-right align-top font-medium">
+                    {formatCurrency(estValue)}
                   </TableCell>
                 </TableRow>
               )
