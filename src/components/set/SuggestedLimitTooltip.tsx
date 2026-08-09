@@ -10,8 +10,8 @@ export function SuggestedLimitTooltip({ value }: { value: number | null }) {
         </span>
       </TooltipTrigger>
       <TooltipContent>
-        Cost per lasting outcome × current lasting-outcome count × 1.15 headroom — what it costs
-        to sustain this month's output going forward.
+        Cost per PR merged × current merged-PR count × 1.15 headroom — what it costs to sustain
+        this month's output going forward.
       </TooltipContent>
     </Tooltip>
   )

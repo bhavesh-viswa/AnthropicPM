@@ -33,20 +33,24 @@ agree.
 
 ## The three tabs
 
-- **See** — spend & value by group and user: total net spend, **% spend
-  verified** (the north star — spend tied to a shipped, lasting PR), %
-  autonomous spend, a cost-per-lasting-outcome chart by group, and a
-  searchable per-user table.
+- **See** — spend & value by group, user, and product: total net spend,
+  **% spend verified** (the north star — spend tied to a shipped, lasting
+  PR), % autonomous spend, a cost-per-PR-merged chart by group, and a
+  searchable per-user table. A **product filter** (All / Claude Code / Chat
+  / Cowork) scopes the summary cards and table to one product at a time. A
+  standalone **ROI calculator** always shows all three products side by
+  side, with admin-editable time-saved and hourly-rate assumptions that
+  recompute an estimated dollar value live.
 - **Set** — the group & user spend-limits table. Each row shows the limit
   next to the ROI it bought this month and a suggested limit derived from
-  cost-per-outcome, plus the effective-limit resolver's logic spelled out
+  cost per PR merged, plus the effective-limit resolver's logic spelled out
   inline (individual > group > org default, with a live toggle for how
   multi-group membership resolves).
 - **Verify** — the credit-request queue. Every pending request shows the
-  requester's realized ROI (cost-per-lasting-outcome, revert rate) next to
-  the ask, an **auto-approve if ROI is top-decile** toggle, and — for a
-  flagged high-revert autonomous agent — a **throttle this user** action with
-  a projected spend-saved-vs-outcomes-protected estimate.
+  requester's realized ROI (cost per PR merged, revert rate) next to the
+  ask, an **auto-approve if ROI is top-decile** toggle, and — for a flagged
+  high-revert autonomous agent — a **throttle this user** action with a
+  projected spend-saved-vs-outcomes-protected estimate.
 
 ## Data model
 
@@ -88,23 +92,49 @@ MTD figures don't drift with wall-clock time).
   18-merged bag rather than independent coin flips). Everything else in the
   dataset (day-to-day variance, other users' outcomes, token counts) is
   randomized around per-archetype parameters.
+- The ROI calculator's "verified output" count has no dedicated field in the
+  seed schema for Chat/Cowork (unlike Claude Code, where a merged PR is a
+  real countable event) — `total_requests` for that product stands in as a
+  proxy for "conversations" / "sessions." The per-product time-saved and
+  hourly-rate defaults are illustrative industry-standard assumptions, fully
+  editable by the admin.
 
 ### Metrics (`src/lib/metrics.ts`)
 
-- `cost_per_lasting_outcome` = Code-product net spend in scope ÷ count of PRs
-  that were merged **and** still standing 30 days later.
+- `cost_per_merged_pr` = Claude Code net spend in scope ÷ count of PRs
+  merged (any merged PR counts — no 30-day survival requirement).
 - `pct_autonomous_spend` = autonomous net spend ÷ total net spend.
 - `revert_rate` = reverted ÷ (merged + reverted); open PRs are excluded from
   the denominator since they haven't had a chance to revert yet.
-- `pct_spend_verified` (**north star**) = spend tied to a lasting outcome ÷
-  total spend, any product.
+- `pct_spend_verified` (**north star**) = spend tied to a lasting outcome
+  (merged **and** still standing 30 days later) ÷ total spend, any product —
+  deliberately a stricter bar than `cost_per_merged_pr`, since durability is
+  what makes spend worth vouching for.
 - `effective_spend_limit` resolves individual → group (via
   `multi_group_resolution`) → org default, and returns a human-readable
   explanation that's rendered directly in the Set tab, not just computed
   silently.
-- `suggested_limit` = cost-per-lasting-outcome × current lasting-outcome
-  count × 1.15 headroom — what it costs to sustain this month's output going
-  forward, not a reward for good behavior.
+- `suggested_limit` = cost-per-merged-PR × current merged-PR count × 1.15
+  headroom — what it costs to sustain this month's output going forward,
+  not a reward for good behavior.
+- Every metric function takes an optional `scope.product` filter (used by
+  the See tab's product filter) — omit it for "all products."
+
+### ROI calculator (`src/lib/roi.ts`)
+
+Per product (Claude Code / Chat / Cowork), `estimated_value_usd` = verified
+output count × (minutes saved per unit ÷ 60) × hourly rate. Defaults:
+
+| Product | Unit | Minutes saved / unit | Hourly rate |
+|---|---|---|---|
+| Claude Code | PR merged | 150 | $85 |
+| Chat | conversation | 4 | $60 |
+| Cowork | session | 30 | $75 |
+
+(The Code and Chat minute figures intentionally match the reference
+Analytics "Estimated time saved" panel's own example numbers.) Both fields
+are editable per product in the See tab's ROI Calculator card; edits are
+stored as overlay overrides and recompute the dollar value immediately.
 
 ## The seeded scenario
 
@@ -123,17 +153,20 @@ Payments' $3,000 group limit regardless of that setting.
 ## 60-second demo script
 
 1. **See** — land on the north-star card, **% Spend Verified**. Filter to
-   Payments: its cost-per-lasting-outcome bar (~$61) is clearly the cheapest
-   of the three, tagged "Best ROI." Growth is the most expensive (~$282,
+   Payments: its cost-per-PR-merged bar (~$53) is clearly the cheapest of
+   the three, tagged "Best ROI." Growth is the most expensive (~$126,
    "Needs attention") — Felix's row in the user table shows a 55.0% revert
-   rate at a glance.
+   rate at a glance. Switch the product filter to Chat or Cowork and watch
+   the summary cards and table rescope instantly; scroll to the ROI
+   Calculator and edit Claude Code's hourly rate to see the estimated
+   dollar value recompute live.
 2. **Set** — Payments is sitting at **exactly 80% of its $3,000 budget**,
-   with a suggested limit that reflects its strong cost-per-outcome. Toggle
-   "Lower limit wins" and watch Gabe's resolved limit flip live from
+   with a suggested limit that reflects its strong cost-per-PR-merged.
+   Toggle "Lower limit wins" and watch Gabe's resolved limit flip live from
    Payments' $3,000 to Platform's $1,500 — the resolver logic is explicit,
    not hidden.
 3. **Verify** — Carol's pending credit request sits right next to her
-   realized ROI (~$47/outcome, 53% spend verified) and a "Top decile ROI"
+   realized ROI (~$48/PR merged, 53% spend verified) and a "Top decile ROI"
    badge. Flip **Auto-approve if ROI in top decile** — her request is
    approved instantly with a toast explaining why. Felix's request, by
    contrast, is flagged as a high-revert autonomous agent and correctly

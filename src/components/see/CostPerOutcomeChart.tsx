@@ -2,7 +2,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { seedData } from '@/data/seed'
 import { formatCurrency } from '@/lib/format'
-import { costPerLastingOutcome } from '@/lib/metrics'
+import { costPerMergedPR } from '@/lib/metrics'
 import { RoiPill, type RoiTone } from '@/components/shared/RoiPill'
 
 const GROUP_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)']
@@ -21,7 +21,7 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { paylo
     <div className="rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
       <div className="font-medium">{row.group}</div>
       <div className="text-muted-foreground">
-        {row.costPerOutcome === null ? 'No lasting outcomes yet' : `${formatCurrency(row.costPerOutcome)} / lasting PR`}
+        {row.costPerOutcome === null ? 'No PRs merged yet' : `${formatCurrency(row.costPerOutcome)} / PR merged`}
       </div>
     </div>
   )
@@ -29,7 +29,7 @@ function ChartTooltip({ active, payload }: { active?: boolean; payload?: { paylo
 
 export function CostPerOutcomeChart() {
   const bars: GroupBar[] = seedData.groups.map((g, i) => {
-    const costPerOutcome = costPerLastingOutcome(seedData, { level: 'group', id: g.group_name })
+    const costPerOutcome = costPerMergedPR(seedData, { level: 'group', id: g.group_name })
     return {
       group: g.group_name,
       costPerOutcome,
@@ -52,10 +52,9 @@ export function CostPerOutcomeChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Cost per lasting outcome, by group</CardTitle>
+        <CardTitle>Cost per PR merged, by group</CardTitle>
         <CardDescription>
-          Code-product net spend ÷ PRs that were merged and still standing 30 days later — lower is
-          better.
+          Claude Code net spend ÷ PRs merged — lower is better.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

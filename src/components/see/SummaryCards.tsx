@@ -29,18 +29,24 @@ export function SummaryCards({ scope }: { scope: MetricScope }) {
   const julyAutonomous = pctAutonomousSpend(seedData, scope, JULY_RANGE)
   const juneAutonomous = pctAutonomousSpend(seedData, scope, JUNE_RANGE)
 
+  const productLabel = scope.product ?? 'all products'
+  const verifiedDescription =
+    scope.product && scope.product !== 'Claude Code'
+      ? 'Verification requires a linked PR outcome, tracked for Claude Code only'
+      : 'North star — spend tied to a shipped, lasting PR'
+
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <StatTile
         label="Total net spend"
         value={formatCurrency(totalSpend)}
-        description="Jun 1 – Jul 31, all products"
+        description={`Jun 1 – Jul 31, ${productLabel}`}
         delta={deltaFor(julySpend, juneSpend)}
       />
       <StatTile
         label="% Spend verified"
         value={formatPercent(pctVerified)}
-        description="North star — spend tied to a shipped, lasting PR"
+        description={verifiedDescription}
         delta={deltaFor(julyVerified, juneVerified, 'up')}
         emphasize
       />

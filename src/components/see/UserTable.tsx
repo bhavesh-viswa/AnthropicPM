@@ -14,7 +14,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { ThrottleButton } from '@/components/throttle/ThrottleButton'
 import { getDisplayName, seedData } from '@/data/seed'
 import { formatCurrency, formatPercent } from '@/lib/format'
-import { costPerLastingOutcome, pctSpendVerified, revertRate, totalNetSpend } from '@/lib/metrics'
+import { costPerMergedPR, pctSpendVerified, revertRate, scopedUserEmails, totalNetSpend } from '@/lib/metrics'
 import { isFlaggedAutonomousAgent } from '@/lib/throttle'
 import { isThrottled, useAppState } from '@/state/AppStateContext'
 import type { MetricScope } from '@/lib/metrics'
@@ -34,30 +34,24 @@ export function UserTable({ scope }: { scope: MetricScope }) {
   const [search, setSearch] = useState('')
   const { overlay } = useAppState()
 
-  const emails = useMemo(() => {
-    if (scope.level === 'user') return scope.id ? [scope.id] : []
-    if (scope.level === 'group') {
-      return seedData.groupMembers.filter((m) => m.group_name === scope.id).map((m) => m.user_email)
-    }
-    return [...new Set(seedData.spendRows.map((r) => r.user_email))]
-  }, [scope])
+  const emails = useMemo(() => scopedUserEmails(seedData, scope), [scope])
 
   const rows: UserRow[] = useMemo(
     () =>
       emails.map((email) => {
-        const userScope: MetricScope = { level: 'user', id: email }
+        const userScope: MetricScope = { level: 'user', id: email, product: scope.product }
         return {
           email,
           name: getDisplayName(email),
           groups: seedData.groupMembers.filter((m) => m.user_email === email).map((m) => m.group_name),
           totalSpend: totalNetSpend(seedData, userScope),
-          costPerOutcome: costPerLastingOutcome(seedData, userScope),
+          costPerOutcome: costPerMergedPR(seedData, userScope),
           pctVerified: pctSpendVerified(seedData, userScope),
           revert: revertRate(seedData, userScope),
           flagged: isFlaggedAutonomousAgent(seedData, email),
         }
       }),
-    [emails],
+    [emails, scope.product],
   )
 
   const filtered = rows
@@ -84,7 +78,7 @@ export function UserTable({ scope }: { scope: MetricScope }) {
                 <TableHead>User</TableHead>
                 <TableHead>Group(s)</TableHead>
                 <TableHead className="text-right">Net spend</TableHead>
-                <TableHead className="text-right">Cost / lasting outcome</TableHead>
+                <TableHead className="text-right">Cost / PR merged</TableHead>
                 <TableHead className="text-right">% Verified</TableHead>
                 <TableHead className="text-right">Revert rate</TableHead>
                 <TableHead />
