@@ -98,7 +98,7 @@ export function RoiCalculator({ group }: { group: string }) {
                 <TableRow key={product}>
                   <TableCell className="font-medium">{product}</TableCell>
                   <TableCell className="text-right">
-                    {count.toLocaleString()}{' '}
+                    {Math.round(count).toLocaleString()}{' '}
                     <span className="text-xs text-muted-foreground">{assumption.unitLabel}(s)</span>
                   </TableCell>
                   <TableCell className="text-right">

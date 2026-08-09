@@ -1,9 +1,11 @@
 import { seedData } from '@/data/seed'
-import { formatCurrency, formatPercent } from '@/lib/format'
+import { formatCurrency } from '@/lib/format'
 import { JULY_RANGE, JUNE_RANGE } from '@/lib/dateRanges'
-import { pctAutonomousSpend, pctSpendVerified, totalNetSpend, type MetricScope } from '@/lib/metrics'
+import { totalNetSpend, type MetricScope } from '@/lib/metrics'
+import { totalEstimatedValueUsd } from '@/lib/roi'
 import { StatTile } from '@/components/shared/StatTile'
 import type { DeltaDirection, DeltaTone } from '@/components/shared/DeltaBadge'
+import { useAppState } from '@/state/AppStateContext'
 
 function deltaFor(current: number, previous: number, goodDirection?: 'up' | 'down') {
   const diff = current - previous
@@ -17,26 +19,20 @@ function deltaFor(current: number, previous: number, goodDirection?: 'up' | 'dow
 }
 
 export function SummaryCards({ scope }: { scope: MetricScope }) {
+  const { overlay } = useAppState()
+
   const totalSpend = totalNetSpend(seedData, scope)
   const julySpend = totalNetSpend(seedData, scope, JULY_RANGE)
   const juneSpend = totalNetSpend(seedData, scope, JUNE_RANGE)
 
-  const pctVerified = pctSpendVerified(seedData, scope)
-  const julyVerified = pctSpendVerified(seedData, scope, JULY_RANGE)
-  const juneVerified = pctSpendVerified(seedData, scope, JUNE_RANGE)
-
-  const pctAutonomous = pctAutonomousSpend(seedData, scope)
-  const julyAutonomous = pctAutonomousSpend(seedData, scope, JULY_RANGE)
-  const juneAutonomous = pctAutonomousSpend(seedData, scope, JUNE_RANGE)
+  const estValue = totalEstimatedValueUsd(seedData, scope, overlay.roiOverrides)
+  const julyEstValue = totalEstimatedValueUsd(seedData, scope, overlay.roiOverrides, JULY_RANGE)
+  const juneEstValue = totalEstimatedValueUsd(seedData, scope, overlay.roiOverrides, JUNE_RANGE)
 
   const productLabel = scope.product ?? 'all products'
-  const verifiedDescription =
-    scope.product && scope.product !== 'Claude Code'
-      ? 'Verification requires a linked PR outcome, tracked for Claude Code only'
-      : 'North star — spend tied to a shipped, lasting PR'
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <StatTile
         label="Total net spend"
         value={formatCurrency(totalSpend)}
@@ -44,17 +40,11 @@ export function SummaryCards({ scope }: { scope: MetricScope }) {
         delta={deltaFor(julySpend, juneSpend)}
       />
       <StatTile
-        label="% Spend verified"
-        value={formatPercent(pctVerified)}
-        description={verifiedDescription}
-        delta={deltaFor(julyVerified, juneVerified, 'up')}
+        label="Est. value"
+        value={formatCurrency(estValue)}
+        description="From the ROI calculator's time-saved and hourly-rate assumptions — edit them below"
+        delta={deltaFor(julyEstValue, juneEstValue, 'up')}
         emphasize
-      />
-      <StatTile
-        label="% Autonomous spend"
-        value={formatPercent(pctAutonomous)}
-        description="Spend from agents running without a human in the loop"
-        delta={deltaFor(julyAutonomous, juneAutonomous, 'down')}
       />
     </div>
   )
