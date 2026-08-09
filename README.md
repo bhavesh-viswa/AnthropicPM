@@ -115,7 +115,7 @@ Defaults:
 | Group | Members | Story |
 |---|---|---|
 | **Payments** | Alice, Bob, Carol (+ Gabe) | High-ROI — cheap, mostly-lasting PRs |
-| **Growth** | Dave, Erin, Felix | Felix is an autonomous agent with a 55% revert rate |
+| **Growth** | Dave, Erin, Felix | Felix has high spend for PRs merged |
 | **Platform** | Gabe (+), Hana | Baseline |
 
 Gabe is in both Payments and Platform — the live worked example for the
