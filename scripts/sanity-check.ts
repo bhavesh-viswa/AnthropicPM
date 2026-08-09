@@ -17,12 +17,12 @@ function matchedOutcomesFor(rows: SpendRow[]): GithubOutcome[] {
   return outcomes.filter((o) => keys.has(outcomeKey(o.author_email, o.repo, o.created_at)))
 }
 
-function costPerLastingOutcome(rows: SpendRow[]): number | null {
+function costPerMergedPR(rows: SpendRow[]): number | null {
   const codeRows = rows.filter(isCode)
   const spend = codeRows.reduce((s, r) => s + r.total_net_spend_usd, 0)
   const matched = matchedOutcomesFor(codeRows)
-  const lasting = matched.filter((o) => o.state === 'merged' && o.lasted_30d).length
-  return lasting === 0 ? null : spend / lasting
+  const merged = matched.filter((o) => o.state === 'merged').length
+  return merged === 0 ? null : spend / merged
 }
 
 function revertRate(rows: SpendRow[]): number {
@@ -60,7 +60,7 @@ for (const g of groups) {
   const totalSpend = rows.reduce((s, r) => s + r.total_net_spend_usd, 0)
   console.log(`\n${g} (${emails.join(', ')})`)
   console.log('  total net spend (2mo):', totalSpend.toFixed(2))
-  console.log('  cost_per_lasting_outcome:', costPerLastingOutcome(rows)?.toFixed(2) ?? 'N/A')
+  console.log('  cost_per_merged_pr:', costPerMergedPR(rows)?.toFixed(2) ?? 'N/A')
   console.log('  revert_rate:', (revertRate(rows) * 100).toFixed(1) + '%')
   console.log('  pct_spend_verified:', (pctSpendVerified(rows) * 100).toFixed(1) + '%')
 }
@@ -128,7 +128,7 @@ const perUser = USERS.map((u) => {
   return {
     name: u.display_name,
     email: u.user_email,
-    cost_per_lasting_outcome: costPerLastingOutcome(rows),
+    cost_per_merged_pr: costPerMergedPR(rows),
     pct_spend_verified: pctSpendVerified(rows),
     revert_rate: revertRate(rows),
     pct_autonomous_spend: totalSpend === 0 ? 0 : autonomousSpend / totalSpend,
@@ -138,8 +138,26 @@ perUser
   .sort((a, b) => b.pct_spend_verified - a.pct_spend_verified)
   .forEach((u, i) => {
     console.log(
-      `${i + 1}. ${u.name}: verified=${(u.pct_spend_verified * 100).toFixed(1)}% cost/outcome=${
-        u.cost_per_lasting_outcome?.toFixed(2) ?? 'N/A'
+      `${i + 1}. ${u.name}: verified=${(u.pct_spend_verified * 100).toFixed(1)}% cost/PR-merged=${
+        u.cost_per_merged_pr?.toFixed(2) ?? 'N/A'
       } revert=${(u.revert_rate * 100).toFixed(1)}% autonomous=${(u.pct_autonomous_spend * 100).toFixed(1)}%`,
     )
   })
+
+console.log('\n=== ROI calculator defaults (See tab, org scope, full window) ===')
+const ROI_DEFAULTS: { product: SpendRow['product']; unit: string; minutes: number; hourlyRate: number }[] = [
+  { product: 'Claude Code', unit: 'PR merged', minutes: 150, hourlyRate: 85 },
+  { product: 'Chat', unit: 'conversation', minutes: 4, hourlyRate: 60 },
+  { product: 'Cowork', unit: 'session', minutes: 30, hourlyRate: 75 },
+]
+for (const { product, unit, minutes, hourlyRate } of ROI_DEFAULTS) {
+  const productRows = spendRows.filter((r) => r.product === product)
+  const count =
+    product === 'Claude Code'
+      ? matchedOutcomesFor(productRows).filter((o) => o.state === 'merged').length
+      : productRows.reduce((s, r) => s + r.total_requests, 0)
+  const value = ((count * minutes) / 60) * hourlyRate
+  console.log(
+    `${product}: ${count.toLocaleString()} ${unit}(s) × ${minutes} min × $${hourlyRate}/hr = $${value.toFixed(2)} estimated value`,
+  )
+}

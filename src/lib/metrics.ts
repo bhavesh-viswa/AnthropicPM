@@ -18,13 +18,16 @@ export interface MetricScope {
   // used only when level === 'users' — an explicit, ad-hoc list of emails
   // (e.g. "everyone falling back to the org default limit")
   emails?: string[]
+  // optional product filter layered on top of the user/group/org scope —
+  // e.g. "Payments, Chat spend only". Omit for "all products".
+  product?: Product
 }
 
 export function round2(value: number): number {
   return Math.round(value * 100) / 100
 }
 
-function inRange(date: string, range?: DateRange): boolean {
+export function inRange(date: string, range?: DateRange): boolean {
   if (!range) return true
   return date >= range.start && date <= range.end
 }
@@ -42,6 +45,15 @@ export function scopedUserEmails(data: SeedData, scope: MetricScope): string[] {
       .map((m) => m.user_email)
   }
   return [...new Set(data.spendRows.map((r) => r.user_email))]
+}
+
+// Rows in scope: matching user emails, within the date range, and matching
+// scope.product when set (omit scope.product for "all products").
+export function scopedRows(data: SeedData, scope: MetricScope, range?: DateRange): SpendRow[] {
+  const emails = new Set(scopedUserEmails(data, scope))
+  return data.spendRows.filter(
+    (r) => emails.has(r.user_email) && inRange(r.date, range) && (!scope.product || r.product === scope.product),
+  )
 }
 
 // Indexes outcomes by author+repo+date — the join key that fakes the
@@ -62,6 +74,10 @@ export function joinCodeSpendToOutcomes(
   scope: MetricScope,
   range?: DateRange,
 ): { codeRows: SpendRow[]; matchedOutcomes: GithubOutcome[] } {
+  // No PRs exist for any product other than Claude Code.
+  if (scope.product && scope.product !== 'Claude Code') {
+    return { codeRows: [], matchedOutcomes: [] }
+  }
   const emails = new Set(scopedUserEmails(data, scope))
   const codeRows = data.spendRows.filter(
     (r) => r.product === 'Claude Code' && emails.has(r.user_email) && inRange(r.date, range),
@@ -84,38 +100,25 @@ export function joinCodeSpendToOutcomes(
 }
 
 export function totalNetSpend(data: SeedData, scope: MetricScope, range?: DateRange): number {
-  const emails = new Set(scopedUserEmails(data, scope))
-  return round2(
-    data.spendRows
-      .filter((r) => emails.has(r.user_email) && inRange(r.date, range))
-      .reduce((sum, r) => sum + r.total_net_spend_usd, 0),
-  )
+  return round2(scopedRows(data, scope, range).reduce((sum, r) => sum + r.total_net_spend_usd, 0))
 }
 
-// group net spend attributable to the Code product / count of PRs that were
-// both merged and still standing 30 days later. null ("N/A") when there are
-// no lasting outcomes yet, to avoid a divide-by-zero.
-export function costPerLastingOutcome(
+// Claude Code net spend in scope ÷ count of matched PRs that were merged
+// (any state after merge — no 30-day survival requirement). null ("N/A")
+// when nothing has merged yet, to avoid a divide-by-zero.
+export function costPerMergedPR(
   data: SeedData,
   scope: MetricScope,
   range?: DateRange,
 ): number | null {
   const { codeRows, matchedOutcomes } = joinCodeSpendToOutcomes(data, scope, range)
   const spend = codeRows.reduce((sum, r) => sum + r.total_net_spend_usd, 0)
-  const lastingCount = matchedOutcomes.filter((o) => o.state === 'merged' && o.lasted_30d).length
-  return lastingCount === 0 ? null : round2(spend / lastingCount)
+  const mergedCount = matchedOutcomes.filter((o) => o.state === 'merged').length
+  return mergedCount === 0 ? null : round2(spend / mergedCount)
 }
 
-export function pctAutonomousSpend(
-  data: SeedData,
-  scope: MetricScope,
-  range?: DateRange,
-  product?: Product,
-): number {
-  const emails = new Set(scopedUserEmails(data, scope))
-  const rows = data.spendRows.filter(
-    (r) => emails.has(r.user_email) && inRange(r.date, range) && (!product || r.product === product),
-  )
+export function pctAutonomousSpend(data: SeedData, scope: MetricScope, range?: DateRange): number {
+  const rows = scopedRows(data, scope, range)
   const total = rows.reduce((sum, r) => sum + r.total_net_spend_usd, 0)
   if (total === 0) return 0
   const autonomous = rows
@@ -138,8 +141,7 @@ export function revertRate(data: SeedData, scope: MetricScope, range?: DateRange
 // NORTH STAR METRIC — of every dollar spent (any product), what fraction is
 // tied to a shipped PR that was still standing 30 days later.
 export function pctSpendVerified(data: SeedData, scope: MetricScope, range?: DateRange): number {
-  const emails = new Set(scopedUserEmails(data, scope))
-  const rows = data.spendRows.filter((r) => emails.has(r.user_email) && inRange(r.date, range))
+  const rows = scopedRows(data, scope, range)
   const total = rows.reduce((sum, r) => sum + r.total_net_spend_usd, 0)
   if (total === 0) return 0
 
@@ -241,19 +243,19 @@ export function effectiveSpendLimit(
   }
 }
 
-// Suggested limit: what it costs to sustain the scope's current lasting-
-// outcome throughput, plus headroom. null when there's no ROI signal yet.
+// Suggested limit: what it costs to sustain the scope's current merged-PR
+// throughput, plus headroom. null when there's no ROI signal yet.
 export function suggestedLimit(
   data: SeedData,
   scope: MetricScope,
   range?: DateRange,
   headroom = 1.15,
 ): number | null {
-  const cpo = costPerLastingOutcome(data, scope, range)
+  const cpo = costPerMergedPR(data, scope, range)
   if (cpo === null) return null
   const { matchedOutcomes } = joinCodeSpendToOutcomes(data, scope, range)
-  const lastingCount = matchedOutcomes.filter((o) => o.state === 'merged' && o.lasted_30d).length
-  return round2(cpo * lastingCount * headroom)
+  const mergedCount = matchedOutcomes.filter((o) => o.state === 'merged').length
+  return round2(cpo * mergedCount * headroom)
 }
 
 // Top-decile ROI check for the auto-approve toggle. With small populations

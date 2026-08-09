@@ -7,7 +7,7 @@ import { JULY_RANGE } from '@/lib/dateRanges'
 import { formatCurrency, formatPercent } from '@/lib/format'
 import {
   allUserEmails,
-  costPerLastingOutcome,
+  costPerMergedPR,
   effectiveSpendLimit,
   limitOverrideKey,
   suggestedLimit,
@@ -104,7 +104,7 @@ export function LimitsTable() {
         <CardTitle>Spend limits</CardTitle>
         <CardDescription>
           Each limit shown next to the ROI it bought this month (Jul 1–31) and a suggested limit
-          derived from cost per lasting outcome.
+          derived from cost per PR merged.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -115,7 +115,7 @@ export function LimitsTable() {
               <TableHead className="text-right">Limit</TableHead>
               <TableHead className="text-right">Jul spend</TableHead>
               <TableHead className="text-right">% of budget</TableHead>
-              <TableHead className="text-right">Cost / lasting outcome</TableHead>
+              <TableHead className="text-right">Cost / PR merged</TableHead>
               <TableHead className="text-right">Suggested limit</TableHead>
             </TableRow>
           </TableHeader>
@@ -134,7 +134,7 @@ export function LimitsTable() {
                       ),
                     )
                   : totalNetSpend(seedData, row.metricScope, JULY_RANGE)
-              const cpo = costPerLastingOutcome(seedData, row.metricScope, JULY_RANGE)
+              const cpo = costPerMergedPR(seedData, row.metricScope, JULY_RANGE)
               const suggested = suggestedLimit(seedData, row.metricScope, JULY_RANGE)
               // An unset group has no real group-level cap to measure
               // against — comparing its combined spend to the per-user org

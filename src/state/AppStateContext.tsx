@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
 import type { Dispatch, ReactNode } from 'react'
-import type { CreditRequest, MultiGroupResolution, RequestStatus, SeedData, Settings } from '@/data/types'
+import type { CreditRequest, MultiGroupResolution, Product, RequestStatus, SeedData, Settings } from '@/data/types'
 import type { LimitOverrideMap } from '@/lib/metrics'
 import { limitOverrideKey } from '@/lib/metrics'
+import type { RoiAssumption, RoiOverrideField, RoiOverrideMap } from '@/lib/roi'
+import { effectiveRoiAssumption } from '@/lib/roi'
 
 // The overlay is the only mutable state in this app — a thin patch layer
 // over the immutable seed data. lib/metrics.ts stays a pure function of
@@ -14,6 +16,7 @@ export interface Overlay {
   autoApproveTopDecile: boolean
   bannerDismissed: boolean
   multiGroupResolutionOverride: MultiGroupResolution | null
+  roiOverrides: RoiOverrideMap
 }
 
 const STORAGE_KEY = 'spend-controls-demo-overlay-v1'
@@ -25,6 +28,7 @@ const initialOverlay: Overlay = {
   autoApproveTopDecile: false,
   bannerDismissed: false,
   multiGroupResolutionOverride: null,
+  roiOverrides: {},
 }
 
 type Action =
@@ -33,6 +37,7 @@ type Action =
   | { type: 'APPLY_THROTTLE'; userEmail: string; throttlePct: number; appliedAt: string }
   | { type: 'SET_AUTO_APPROVE'; enabled: boolean }
   | { type: 'SET_MULTI_GROUP_RESOLUTION'; resolution: MultiGroupResolution }
+  | { type: 'SET_ROI_ASSUMPTION'; product: Product; field: RoiOverrideField; value: number }
   | { type: 'DISMISS_BANNER' }
   | { type: 'RESET' }
 
@@ -66,6 +71,17 @@ function reducer(state: Overlay, action: Action): Overlay {
       return { ...state, autoApproveTopDecile: action.enabled }
     case 'SET_MULTI_GROUP_RESOLUTION':
       return { ...state, multiGroupResolutionOverride: action.resolution }
+    case 'SET_ROI_ASSUMPTION':
+      return {
+        ...state,
+        roiOverrides: {
+          ...state.roiOverrides,
+          [action.product]: {
+            ...state.roiOverrides[action.product],
+            [action.field]: action.value,
+          },
+        },
+      }
     case 'DISMISS_BANNER':
       return { ...state, bannerDismissed: true }
     case 'RESET':
@@ -94,6 +110,7 @@ interface AppStateValue {
   applyThrottle: (userEmail: string, throttlePct: number) => void
   setAutoApprove: (enabled: boolean) => void
   setMultiGroupResolution: (resolution: MultiGroupResolution) => void
+  setRoiAssumption: (product: Product, field: RoiOverrideField, value: number) => void
   dismissBanner: () => void
   resetDemo: () => void
 }
@@ -128,6 +145,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setAutoApprove: (enabled) => dispatch({ type: 'SET_AUTO_APPROVE', enabled }),
       setMultiGroupResolution: (resolution) =>
         dispatch({ type: 'SET_MULTI_GROUP_RESOLUTION', resolution }),
+      setRoiAssumption: (product, field, value) =>
+        dispatch({ type: 'SET_ROI_ASSUMPTION', product, field, value }),
       dismissBanner: () => dispatch({ type: 'DISMISS_BANNER' }),
       resetDemo: () => dispatch({ type: 'RESET' }),
     }),
@@ -167,4 +186,8 @@ export function getEffectiveSettings(data: SeedData, overlay: Overlay): Settings
 // immediately without mutating the seed.
 export function withOverlaySettings(data: SeedData, overlay: Overlay): SeedData {
   return { ...data, settings: getEffectiveSettings(data, overlay) }
+}
+
+export function getEffectiveRoiAssumption(overlay: Overlay, product: Product): RoiAssumption {
+  return effectiveRoiAssumption(product, overlay.roiOverrides)
 }

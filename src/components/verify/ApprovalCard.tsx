@@ -7,7 +7,7 @@ import { getDisplayName, seedData } from '@/data/seed'
 import type { CreditRequest } from '@/data/types'
 import { JULY_RANGE } from '@/lib/dateRanges'
 import { formatCurrency, formatDate, formatPercent } from '@/lib/format'
-import { allUserEmails, costPerLastingOutcome, isTopDecileRoi, pctSpendVerified, revertRate } from '@/lib/metrics'
+import { allUserEmails, costPerMergedPR, isTopDecileRoi, pctSpendVerified, revertRate } from '@/lib/metrics'
 import { isFlaggedAutonomousAgent } from '@/lib/throttle'
 import { useAppState } from '@/state/AppStateContext'
 
@@ -25,7 +25,7 @@ const STATUS_VARIANT = { approved: 'good', denied: 'critical' } as const
 export function ApprovalCard({ request }: { request: CreditRequest }) {
   const { setRequestStatus } = useAppState()
   const scope = { level: 'user' as const, id: request.user_email }
-  const cpo = costPerLastingOutcome(seedData, scope, JULY_RANGE)
+  const cpo = costPerMergedPR(seedData, scope, JULY_RANGE)
   const revert = revertRate(seedData, scope, JULY_RANGE)
   const verified = pctSpendVerified(seedData, scope, JULY_RANGE)
   const topDecile = isTopDecileRoi(seedData, request.user_email, allUserEmails(seedData))
@@ -49,7 +49,7 @@ export function ApprovalCard({ request }: { request: CreditRequest }) {
           </span>
           <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
             <Metric label="MTD spend" value={formatCurrency(request.mtd_spend_usd)} />
-            <Metric label="Cost / lasting outcome" value={cpo === null ? 'N/A' : formatCurrency(cpo)} />
+            <Metric label="Cost / PR merged" value={cpo === null ? 'N/A' : formatCurrency(cpo)} />
             <Metric label="Revert rate" value={formatPercent(revert, 0)} />
             <Metric label="% Spend verified" value={formatPercent(verified, 0)} />
           </div>
