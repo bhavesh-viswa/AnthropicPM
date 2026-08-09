@@ -56,8 +56,8 @@ agree.
 - **Verify** — the credit-request queue. Every pending request shows the
   requester's realized ROI (cost per PR merged and **Est. value** — flagged
   red if it's below their MTD spend) next to the ask, plus an
-  **auto-approve if ROI is top-decile** toggle and a "Flagged autonomous
-  agent" badge for high-revert autonomous spenders.
+  **auto-approve if ROI is top-decile** toggle and a **"High cost"** badge
+  for anyone whose estimated value doesn't cover what they've spent.
 
 ## Data model
 
@@ -114,14 +114,14 @@ MTD figures don't drift with wall-clock time).
   merged (any merged PR counts — no 30-day survival requirement). The one
   spend-efficiency number still shown directly, everywhere (See, Set,
   Verify).
-- `pct_autonomous_spend` = autonomous net spend ÷ total net spend. No
-  longer surfaced as its own tile — now purely an input to
-  `isFlaggedAutonomousAgent` (`src/lib/flags.ts`), which drives the
-  "Flagged autonomous agent" badge.
+- `pct_autonomous_spend` = autonomous net spend ÷ total net spend. Kept in
+  the metrics library but no longer surfaced anywhere in the UI.
 - `revert_rate` = reverted ÷ (merged + reverted); open PRs are excluded from
-  the denominator since they haven't had a chance to revert yet. Also no
-  longer shown as a raw number — it's the other input to
-  `isFlaggedAutonomousAgent`.
+  the denominator since they haven't had a chance to revert yet. Also kept
+  but no longer shown as a raw number. The Verify tab's **"High cost"**
+  badge is driven directly by the same below-cost comparison as the
+  Est. value highlight (estimated value < MTD spend), not by either of
+  these two.
 - `pct_spend_verified` = spend tied to a lasting outcome (merged **and**
   still standing 30 days later) ÷ total spend, any product — a stricter bar
   than `cost_per_merged_pr`. No longer shown as a tile or column; it now
@@ -203,8 +203,8 @@ Payments' $3,000 group limit regardless of that setting.
    realized ROI (~$48/PR merged and a comfortably positive Est. value) and
    a "Top decile ROI" badge. Flip **Auto-approve if ROI in top decile** —
    her request is approved instantly with a toast explaining why. Felix's
-   request, by contrast, is flagged as a high-revert autonomous agent, its
-   Est. value shown in red, and it correctly never auto-approves.
+   request, by contrast, is tagged **"High cost"** with its Est. value
+   shown in red, and it correctly never auto-approves.
 
 **The point**: Payments is 80% through budget but every dollar maps to a
 shipped, lasting PR — auto-approve its credit request. Growth's autonomous
