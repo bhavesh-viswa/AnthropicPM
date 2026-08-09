@@ -82,15 +82,21 @@ export function estimatedValueUsd(
 
 // Combined estimated value across every ROI-covered product (Code + Chat +
 // Cowork) — the single number used wherever a table needs one "Est. value"
-// figure for a scope, rather than a per-product breakdown.
+// figure for a scope, rather than a per-product breakdown. When
+// scope.product is set (e.g. the See tab's Product filter), narrows to
+// just that product instead of summing all three — mirrors how
+// totalNetSpend already behaves under a product filter.
 export function totalEstimatedValueUsd(
   data: SeedData,
   scope: MetricScope,
   overrides: RoiOverrideMap,
   range?: DateRange,
 ): number {
+  const products = scope.product
+    ? ROI_PRODUCTS.filter((p) => p === scope.product)
+    : ROI_PRODUCTS
   return round2(
-    ROI_PRODUCTS.reduce((sum, product) => {
+    products.reduce((sum, product) => {
       const assumption = effectiveRoiAssumption(product, overrides)
       return sum + estimatedValueUsd(data, scope, product, assumption, range)
     }, 0),

@@ -33,19 +33,20 @@ agree.
 
 ## The three tabs
 
-- **See** — spend & value by group, user, and product: total net spend,
-  **% spend verified** (the north star — spend tied to a shipped, lasting
-  PR), % autonomous spend, and a cost-per-PR-merged chart by group. A
-  **product filter** (All / Claude Code / Chat / Cowork) scopes the summary
-  cards and table to one product at a time. A standalone **ROI calculator**
-  always shows all three products side by side, with admin-editable
-  time-saved and hourly-rate assumptions that recompute an estimated dollar
-  value live. The per-user table breaks spend out by product (hover a
-  figure to see that product's verified-output count — PRs merged /
-  conversations / sessions) and ends with an **Est. value** column, shown
-  in red whenever a user's estimated value falls below what they spent —
-  the app's passive value-aware signal, in place of an active per-user
-  action.
+- **See** — spend & value by group, user, and product: two summary tiles,
+  **Total net spend** and **Est. value** (the north star — dynamically
+  computed from the ROI calculator's live assumptions), plus a
+  cost-per-PR-merged chart by group. A **product filter** (All / Claude
+  Code / Chat / Cowork) scopes both tiles and the table to one product at a
+  time — Est. value narrows right along with spend. A standalone **ROI
+  calculator** always shows all three products side by side, with
+  admin-editable time-saved and hourly-rate assumptions that recompute
+  every Est. value figure in the app live. The per-user table breaks spend
+  out by product (hover a figure to see that product's verified-output
+  count — PRs merged / conversations / sessions) and ends with its own
+  **Est. value** column, shown in red whenever a user's estimated value
+  falls below what they spent — the app's passive value-aware signal, in
+  place of an active per-user action.
 - **Set** — the group & user spend-limits table. Every column header has a
   hover definition. Each row shows the limit next to the ROI it bought this
   month, a suggested limit derived from cost per PR merged, and an
@@ -53,9 +54,10 @@ agree.
   out inline (individual > group > org default, with a live toggle for how
   multi-group membership resolves).
 - **Verify** — the credit-request queue. Every pending request shows the
-  requester's realized ROI (cost per PR merged, revert rate, **Est.
-  value** — again flagged red if it's below their MTD spend) next to the
-  ask, plus an **auto-approve if ROI is top-decile** toggle.
+  requester's realized ROI (cost per PR merged and **Est. value** — flagged
+  red if it's below their MTD spend) next to the ask, plus an
+  **auto-approve if ROI is top-decile** toggle and a "Flagged autonomous
+  agent" badge for high-revert autonomous spenders.
 
 ## Data model
 
@@ -109,14 +111,23 @@ MTD figures don't drift with wall-clock time).
 ### Metrics (`src/lib/metrics.ts`)
 
 - `cost_per_merged_pr` = Claude Code net spend in scope ÷ count of PRs
-  merged (any merged PR counts — no 30-day survival requirement).
-- `pct_autonomous_spend` = autonomous net spend ÷ total net spend.
+  merged (any merged PR counts — no 30-day survival requirement). The one
+  spend-efficiency number still shown directly, everywhere (See, Set,
+  Verify).
+- `pct_autonomous_spend` = autonomous net spend ÷ total net spend. No
+  longer surfaced as its own tile — now purely an input to
+  `isFlaggedAutonomousAgent` (`src/lib/flags.ts`), which drives the
+  "Flagged autonomous agent" badge.
 - `revert_rate` = reverted ÷ (merged + reverted); open PRs are excluded from
-  the denominator since they haven't had a chance to revert yet.
-- `pct_spend_verified` (**north star**) = spend tied to a lasting outcome
-  (merged **and** still standing 30 days later) ÷ total spend, any product —
-  deliberately a stricter bar than `cost_per_merged_pr`, since durability is
-  what makes spend worth vouching for.
+  the denominator since they haven't had a chance to revert yet. Also no
+  longer shown as a raw number — it's the other input to
+  `isFlaggedAutonomousAgent`.
+- `pct_spend_verified` = spend tied to a lasting outcome (merged **and**
+  still standing 30 days later) ÷ total spend, any product — a stricter bar
+  than `cost_per_merged_pr`. No longer shown as a tile or column; it now
+  only powers `isTopDecileRoi`'s ranking behind the Verify tab's "Top
+  decile ROI" badge and auto-approve toggle. **Est. value** (below) has
+  taken over as the visible north-star number.
 - `effective_spend_limit` resolves individual → group (via
   `multi_group_resolution`) → org default, and returns a human-readable
   explanation that's rendered directly in the Set tab, not just computed
@@ -172,17 +183,16 @@ Payments' $3,000 group limit regardless of that setting.
 
 ## 60-second demo script
 
-1. **See** — land on the north-star card, **% Spend Verified**. Filter to
-   Payments: its cost-per-PR-merged bar (~$53) is clearly the cheapest of
-   the three, tagged "Best ROI." Growth is the most expensive (~$126,
-   "Needs attention"). Switch the product filter to Chat or Cowork and
-   watch the summary cards rescope instantly; edit Claude Code's hourly
-   rate in the ROI Calculator and see the estimated dollar value recompute
-   live. Scroll to the user table: hover any product-spend figure to see
-   its unit count (PRs merged / conversations / sessions), and note
+1. **See** — land on the north-star card, **Est. value**, next to Total net
+   spend. Switch the product filter to Chat or Cowork and watch both tiles
+   rescope instantly; edit Claude Code's hourly rate in the ROI Calculator
+   and see Est. value recompute live everywhere it's shown. The
+   cost-per-PR-merged chart: Payments (~$53) is clearly the cheapest of the
+   three, tagged "Best ROI"; Growth is the most expensive (~$126, "Needs
+   attention"). Scroll to the user table: hover any product-spend figure to
+   see its unit count (PRs merged / conversations / sessions), and note
    Felix's **Est. value is the only one shown in red** — the sole user
-   whose estimated value doesn't cover what he spent, right next to his
-   55.0% revert rate.
+   whose estimated value doesn't cover what he spent.
 2. **Set** — Payments is sitting at **exactly 80% of its $3,000 budget**,
    with a suggested limit that reflects its strong cost-per-PR-merged and
    an Est. value column showing what that budget is actually buying. Hover
@@ -190,12 +200,11 @@ Payments' $3,000 group limit regardless of that setting.
    watch Gabe's resolved limit flip live from Payments' $3,000 to
    Platform's $1,500 — the resolver logic is explicit, not hidden.
 3. **Verify** — Carol's pending credit request sits right next to her
-   realized ROI (~$48/PR merged, 53% spend verified, and a comfortably
-   positive Est. value) and a "Top decile ROI" badge. Flip **Auto-approve
-   if ROI in top decile** — her request is approved instantly with a toast
-   explaining why. Felix's request, by contrast, is flagged as a
-   high-revert autonomous agent, its Est. value shown in red, and it
-   correctly never auto-approves.
+   realized ROI (~$48/PR merged and a comfortably positive Est. value) and
+   a "Top decile ROI" badge. Flip **Auto-approve if ROI in top decile** —
+   her request is approved instantly with a toast explaining why. Felix's
+   request, by contrast, is flagged as a high-revert autonomous agent, its
+   Est. value shown in red, and it correctly never auto-approves.
 
 **The point**: Payments is 80% through budget but every dollar maps to a
 shipped, lasting PR — auto-approve its credit request. Growth's autonomous

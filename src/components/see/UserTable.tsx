@@ -14,8 +14,8 @@ import { SearchInput } from '@/components/shared/SearchInput'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { getDisplayName, seedData } from '@/data/seed'
 import type { Product } from '@/data/types'
-import { formatCurrency, formatPercent } from '@/lib/format'
-import { costPerMergedPR, pctSpendVerified, revertRate, scopedUserEmails, totalNetSpend } from '@/lib/metrics'
+import { formatCurrency } from '@/lib/format'
+import { costPerMergedPR, scopedUserEmails, totalNetSpend } from '@/lib/metrics'
 import { ROI_PRODUCTS, totalEstimatedValueUsd, verifiedOutputCount } from '@/lib/roi'
 import { useAppState } from '@/state/AppStateContext'
 import type { MetricScope } from '@/lib/metrics'
@@ -32,8 +32,6 @@ interface UserRow {
   totalSpend: number
   productSpend: Record<Product, ProductBreakdown>
   costPerOutcome: number | null
-  pctVerified: number
-  revert: number
   estValue: number
 }
 
@@ -70,8 +68,6 @@ export function UserTable({ scope }: { scope: MetricScope }) {
           totalSpend: totalNetSpend(seedData, userScope),
           productSpend,
           costPerOutcome: costPerMergedPR(seedData, userScope),
-          pctVerified: pctSpendVerified(seedData, userScope),
-          revert: revertRate(seedData, userScope),
           estValue: totalEstimatedValueUsd(seedData, { level: 'user', id: email }, overlay.roiOverrides),
         }
       }),
@@ -84,7 +80,7 @@ export function UserTable({ scope }: { scope: MetricScope }) {
         r.name.toLowerCase().includes(search.toLowerCase()) ||
         r.email.toLowerCase().includes(search.toLowerCase()),
     )
-    .sort((a, b) => b.pctVerified - a.pctVerified)
+    .sort((a, b) => b.estValue - a.estValue)
 
   return (
     <Card>
@@ -108,8 +104,6 @@ export function UserTable({ scope }: { scope: MetricScope }) {
                   </TableHead>
                 ))}
                 <TableHead className="text-right">Cost / PR merged</TableHead>
-                <TableHead className="text-right">% Verified</TableHead>
-                <TableHead className="text-right">Revert rate</TableHead>
                 <TableHead className="text-right">Est. value</TableHead>
               </TableRow>
             </TableHeader>
@@ -151,8 +145,6 @@ export function UserTable({ scope }: { scope: MetricScope }) {
                     <TableCell className="text-right">
                       {row.costPerOutcome === null ? 'N/A' : formatCurrency(row.costPerOutcome)}
                     </TableCell>
-                    <TableCell className="text-right">{formatPercent(row.pctVerified)}</TableCell>
-                    <TableCell className="text-right">{formatPercent(row.revert)}</TableCell>
                     <TableCell className="text-right">
                       {belowCost ? (
                         <Tooltip>

@@ -6,8 +6,8 @@ import { RoiPill } from '@/components/shared/RoiPill'
 import { getDisplayName, seedData } from '@/data/seed'
 import type { CreditRequest } from '@/data/types'
 import { JULY_RANGE } from '@/lib/dateRanges'
-import { formatCurrency, formatDate, formatPercent } from '@/lib/format'
-import { allUserEmails, costPerMergedPR, isTopDecileRoi, pctSpendVerified, revertRate } from '@/lib/metrics'
+import { formatCurrency, formatDate } from '@/lib/format'
+import { allUserEmails, costPerMergedPR, isTopDecileRoi } from '@/lib/metrics'
 import { isFlaggedAutonomousAgent } from '@/lib/flags'
 import { totalEstimatedValueUsd } from '@/lib/roi'
 import { useAppState } from '@/state/AppStateContext'
@@ -50,8 +50,6 @@ export function ApprovalCard({ request }: { request: CreditRequest }) {
   const { overlay, setRequestStatus } = useAppState()
   const scope = { level: 'user' as const, id: request.user_email }
   const cpo = costPerMergedPR(seedData, scope, JULY_RANGE)
-  const revert = revertRate(seedData, scope, JULY_RANGE)
-  const verified = pctSpendVerified(seedData, scope, JULY_RANGE)
   const estValue = totalEstimatedValueUsd(seedData, scope, overlay.roiOverrides, JULY_RANGE)
   const topDecile = isTopDecileRoi(seedData, request.user_email, allUserEmails(seedData))
   const flagged = isFlaggedAutonomousAgent(seedData, request.user_email)
@@ -71,11 +69,9 @@ export function ApprovalCard({ request }: { request: CreditRequest }) {
           <span className="text-xs text-muted-foreground">
             {request.user_email} · requested {formatDate(request.requested_at)}
           </span>
-          <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-5">
+          <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
             <Metric label="MTD spend" value={formatCurrency(request.mtd_spend_usd)} />
             <Metric label="Cost / PR merged" value={cpo === null ? 'N/A' : formatCurrency(cpo)} />
-            <Metric label="Revert rate" value={formatPercent(revert, 0)} />
-            <Metric label="% Spend verified" value={formatPercent(verified, 0)} />
             <EstValueMetric value={estValue} belowCost={estValue < request.mtd_spend_usd} />
           </div>
         </div>
