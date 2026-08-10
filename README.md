@@ -181,38 +181,28 @@ Gabe is in both Payments and Platform — the live worked example for the
 multi-group resolver. Alice has an individual $1,200 limit that beats
 Payments' $3,000 group limit regardless of that setting.
 
-## 60-second demo script
+## Scenarios to test
 
-1. **See** — land on the north-star card, **Est. value**, next to Total net
-   spend. Switch the product filter to Chat or Cowork and watch both tiles
-   rescope instantly; edit Claude Code's hourly rate in the ROI Calculator
-   and see Est. value recompute live everywhere it's shown. The
-   cost-per-PR-merged chart: Payments (~$53) is clearly the cheapest of the
-   three, tagged "Best ROI"; Growth is the most expensive (~$126, "Needs
-   attention"). Scroll to the user table: hover any product-spend figure to
-   see its unit count (PRs merged / conversations / sessions), and note
-   Felix's **Est. value is the only one shown in red** — the sole user
-   whose estimated value doesn't cover what he spent.
-2. **Set** — Payments is sitting at **exactly 80% of its $3,000 budget**,
-   with a suggested limit that reflects its strong cost-per-PR-merged and
-   an Est. value column showing what that budget is actually buying. Hover
-   any column header for its definition. Toggle "Lower limit wins" and
-   watch Gabe's resolved limit flip live from Payments' $3,000 to
-   Platform's $1,500 — the resolver logic is explicit, not hidden.
-3. **Verify** — Carol's pending credit request sits right next to her
-   realized ROI (~$48/PR merged and a comfortably positive Est. value) and
-   a "Top decile ROI" badge. Flip **Auto-approve if ROI in top decile** —
-   her request is approved instantly with a toast explaining why. Felix's
-   request, by contrast, is tagged **"High cost"** with its Est. value
-   shown in red, and it correctly never auto-approves.
-
-**The point**: Payments is 80% through budget but every dollar maps to a
-shipped, lasting PR — auto-approve its credit request. Growth's autonomous
-agent is burning credits at a 55% revert rate, and it's the one line in the
-whole app where estimated value doesn't cover the spend — visible at a
-glance, everywhere his numbers show up, without a separate action needed to
-surface it. Both decisions made on one screen, next to the ROI, instead of
-a blind yes/no in a separate settings tab.
+1. **Core story (See)** — Payments' cost-per-PR-merged (~$53) is cheapest,
+   tagged "Best ROI"; Growth is priciest (~$126, "Needs attention").
+2. **Product filter narrows everything** — switch to Claude Code/Chat/
+   Cowork; both summary tiles and the table rescope (e.g. Est. value ~$23K
+   → ~$21K on Claude Code alone).
+3. **ROI calculator is live** — edit any minutes/rate input; Est. value
+   recomputes everywhere (See tile, user table, Set, Verify).
+4. **Below-cost highlight** — Felix is the only red Est. value in the user
+   table and the only "High cost" badge in Verify.
+5. **Multi-group resolution (Set)** — toggle "Higher/Lower limit wins";
+   Gabe's resolved limit flips live between Payments' $3,000 and Platform's
+   $1,500.
+6. **Individual override** — Alice's $1,200 limit beats Payments' $3,000
+   regardless of the toggle.
+7. **Budget vs. ROI (Set)** — Payments sits at exactly 80% of its $3,000
+   budget, with Est. value shown alongside.
+8. **Top-decile auto-approve (Verify)** — flip the toggle; Carol
+   auto-approves instantly, Felix ("High cost") correctly stays pending.
+9. **Search + reset** — search filters the user table (with an empty state
+   on no match); "Reset demo" reverts all edits.
 
 ## Stack
 
@@ -222,3 +212,29 @@ components (Radix primitives) + Recharts. Fully client-side; state is a
 approvals, ROI assumption edits, toggles), optionally persisted to
 `localStorage` so a live demo survives a refresh. Use **Reset demo** in the
 banner to clear it.
+
+## What to build next
+
+- **Est. value is formula-based, not measured.** It's output-count ×
+  adjustable minutes × hourly rate — a top-down guess, not a real signal.
+  Code has one (a merged PR); Chat/Cowork don't and fall back to a
+  request-count proxy. Cowork is the highest-leverage fix — its outputs are
+  often artifacts with a natural "done" state, so a verified-outcome signal
+  there is more trustworthy than a formula.
+- **RBAC tension from merging screens.** One admin role currently sees
+  spend, budgets, and usage together. Real orgs split this — Finance owns
+  budgets and often shouldn't expose them to IT, even though IT needs the
+  usage view. Needs row/column-level permissions per role.
+- **No programmatic administration.** UI-only today, no API. Needs a Spend
+  Management API (read spend/value, write limits, approve/deny, threshold
+  alerts) symmetric to the existing read-only Analytics API, so this isn't
+  locked behind clicking through a UI.
+- **No project/cost-center dimension.** Spend slices by user/group/product/
+  model only. Many companies chargeback by initiative, which cuts across
+  teams — needs a project dimension (likely many-to-many, since users span
+  projects) not represented anywhere here.
+- **Throttling is passive, not actionable.** The app only highlights
+  below-cost spend today; there's no way to act on it besides the existing
+  binary block-at-limit. Needs a value-aware curb — rate-limit a specific
+  high-spend user/agent rather than cutting them off — with a
+  spend-saved-vs-outcomes-at-risk estimate.
