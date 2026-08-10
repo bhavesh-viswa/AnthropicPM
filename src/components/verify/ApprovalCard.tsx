@@ -8,7 +8,6 @@ import type { CreditRequest } from '@/data/types'
 import { JULY_RANGE } from '@/lib/dateRanges'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { allUserEmails, costPerMergedPR, isTopDecileRoi } from '@/lib/metrics'
-import { isFlaggedAutonomousAgent } from '@/lib/flags'
 import { totalEstimatedValueUsd } from '@/lib/roi'
 import { useAppState } from '@/state/AppStateContext'
 
@@ -52,7 +51,7 @@ export function ApprovalCard({ request }: { request: CreditRequest }) {
   const cpo = costPerMergedPR(seedData, scope, JULY_RANGE)
   const estValue = totalEstimatedValueUsd(seedData, scope, overlay.roiOverrides, JULY_RANGE)
   const topDecile = isTopDecileRoi(seedData, request.user_email, allUserEmails(seedData))
-  const flagged = isFlaggedAutonomousAgent(seedData, request.user_email)
+  const belowCost = estValue < request.mtd_spend_usd
 
   return (
     <Card>
@@ -61,7 +60,7 @@ export function ApprovalCard({ request }: { request: CreditRequest }) {
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium">{getDisplayName(request.user_email)}</span>
             {topDecile && <RoiPill tone="good" label="Top decile ROI" />}
-            {flagged && <RoiPill tone="critical" label="Flagged autonomous agent" />}
+            {belowCost && <RoiPill tone="critical" label="High cost" />}
             {request.status !== 'pending' && (
               <Badge variant={STATUS_VARIANT[request.status]}>{request.status}</Badge>
             )}
@@ -72,7 +71,7 @@ export function ApprovalCard({ request }: { request: CreditRequest }) {
           <div className="mt-1 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
             <Metric label="MTD spend" value={formatCurrency(request.mtd_spend_usd)} />
             <Metric label="Cost / PR merged" value={cpo === null ? 'N/A' : formatCurrency(cpo)} />
-            <EstValueMetric value={estValue} belowCost={estValue < request.mtd_spend_usd} />
+            <EstValueMetric value={estValue} belowCost={belowCost} />
           </div>
         </div>
         {request.status === 'pending' && (
