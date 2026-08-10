@@ -109,41 +109,19 @@ Payments' $3,000 group limit regardless of that setting.
    recomputes everywhere (See tile, user table, Set, Verify).
 4. **Below-cost highlight** — Felix is the only red Est. value in the user
    table and the only "High cost" badge in Verify.
-5. **Multi-group resolution (Set)** — toggle "Higher/Lower limit wins";
-   Gabe's resolved limit flips live between Payments' $3,000 and Platform's
-   $1,500.
-6. **Individual override** — Alice's $1,200 limit beats Payments' $3,000
+5. **Individual override** — Alice's $1,200 limit beats Payments' $3,000
    regardless of the toggle.
-7. **Budget vs. ROI (Set)** — Payments sits at exactly 80% of its $3,000
+6. **Budget vs. ROI (Set)** — Payments sits at exactly 80% of its $3,000
    budget, with Est. value shown alongside.
-8. **Top-decile auto-approve (Verify)** — flip the toggle; Carol
-   auto-approves instantly, Felix ("High cost") correctly stays pending.
-9. **Search + reset** — search filters the user table (with an empty state
-   on no match); "Reset demo" reverts all edits.
+7. **Auto-approve (Verify)** — flip the toggle; Carol
+   auto-approves instantly, Felix ("High cost") stays pending.
 
 
 ## What to build next
 
-- **Est. value is formula-based, not measured.** It's output-count ×
-  adjustable minutes × hourly rate — a top-down guess, not a real signal.
-  Code has one (a merged PR); Chat/Cowork don't and fall back to a
-  request-count proxy. Cowork is the highest-leverage fix — its outputs are
-  often artifacts with a natural "done" state, so a verified-outcome signal
-  there is more trustworthy than a formula.
-- **RBAC tension from merging screens.** One admin role currently sees
-  spend, budgets, and usage together. Real orgs split this — Finance owns
-  budgets and often shouldn't expose them to IT, even though IT needs the
-  usage view. Needs row/column-level permissions per role.
-- **No programmatic administration.** UI-only today, no API. Needs a Spend
-  Management API (read spend/value, write limits, approve/deny, threshold
-  alerts) symmetric to the existing read-only Analytics API, so this isn't
-  locked behind clicking through a UI.
-- **No project/cost-center dimension.** Spend slices by user/group/product/
-  model only. Many companies chargeback by initiative, which cuts across
-  teams — needs a project dimension (likely many-to-many, since users span
-  projects) not represented anywhere here.
-- **Throttling is passive, not actionable.** The app only highlights
-  below-cost spend today; there's no way to act on it besides the existing
-  binary block-at-limit. Needs a value-aware curb — rate-limit a specific
-  high-spend user/agent rather than cutting them off — with a
-  spend-saved-vs-outcomes-at-risk estimate.
+- **Est. value is formula-based, not measured.**  Replace with verified outcomes where possible; start with Cowork's artifact "done" state as the first trustworthy signal beyond code.
+- **Merging the screens can create RBAC tension.** Seeing usage may need to stay separate from seeing costs/budgets (e.g., Finance owns budgets and may not want IT to see them, even though IT needs the usage view). Merge with the overall RBAC system.
+- **Management needs to scale beyond a UI.** Spend Management APIs need to be developed for programmatic administration, similar to the Analytics API. 
+- **No project/cost-center dimension.** Spend is sliced by user/model/product, not initiative or project which is how many companies work across departments.
+- **Value-aware throttle rather than blocking.** Curb/rate limit a specific high-spend user and autonomous agent instead of blocking entirely.
+
