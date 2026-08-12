@@ -14,7 +14,13 @@ import { ALL_GROUPS_VALUE } from './GroupFilter'
 import { FULL_WINDOW } from '@/lib/dateRanges'
 import { formatCurrency } from '@/lib/format'
 import type { MetricScope } from '@/lib/metrics'
-import { ROI_PRODUCTS, estimatedValueUsd, verifiedOutputCount, type RoiOverrideField } from '@/lib/roi'
+import {
+  ROI_CATEGORIES,
+  categoryOutputCount,
+  estimatedValueUsd,
+  totalEstimatedValueUsd,
+  type RoiOverrideField,
+} from '@/lib/roi'
 import { getEffectiveRoiAssumption, useAppState } from '@/state/AppStateContext'
 
 function RoiNumberInput({
@@ -79,7 +85,7 @@ export function RoiCalculator({ group }: { group: string }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Product</TableHead>
+              <TableHead>Category</TableHead>
               <TableHead className="text-right">Verified outputs</TableHead>
               <TableHead className="text-right">Minutes saved / unit</TableHead>
               <TableHead className="text-right">Hourly rate</TableHead>
@@ -87,16 +93,16 @@ export function RoiCalculator({ group }: { group: string }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {ROI_PRODUCTS.map((product) => {
-              const assumption = getEffectiveRoiAssumption(overlay, product)
-              const count = verifiedOutputCount(seedData, scope, product, FULL_WINDOW)
-              const value = estimatedValueUsd(seedData, scope, product, assumption, FULL_WINDOW)
+            {ROI_CATEGORIES.map((category) => {
+              const assumption = getEffectiveRoiAssumption(overlay, category)
+              const count = categoryOutputCount(seedData, scope, category, FULL_WINDOW)
+              const value = estimatedValueUsd(seedData, scope, category, assumption, FULL_WINDOW)
               const commit = (field: RoiOverrideField) => (v: number) =>
-                setRoiAssumption(product, field, v)
+                setRoiAssumption(category, field, v)
 
               return (
-                <TableRow key={product}>
-                  <TableCell className="font-medium">{product}</TableCell>
+                <TableRow key={category}>
+                  <TableCell className="font-medium">{category}</TableCell>
                   <TableCell className="text-right">
                     {Math.round(count).toLocaleString()}{' '}
                     <span className="text-xs text-muted-foreground">{assumption.unitLabel}(s)</span>
@@ -124,6 +130,14 @@ export function RoiCalculator({ group }: { group: string }) {
                 </TableRow>
               )
             })}
+            <TableRow className="border-t-2">
+              <TableCell colSpan={4} className="font-semibold">
+                Total estimated value
+              </TableCell>
+              <TableCell className="text-right text-base font-bold">
+                {formatCurrency(totalEstimatedValueUsd(seedData, scope, overlay.roiOverrides, FULL_WINDOW))}
+              </TableCell>
+            </TableRow>
           </TableBody>
         </Table>
       </CardContent>
