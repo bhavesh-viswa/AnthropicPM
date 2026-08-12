@@ -122,8 +122,8 @@ Payments' $3,000 group limit regardless of that setting.
    $1,500.
 6. **Individual override** — Alice's $1,200 limit beats Payments' $3,000
    regardless of the toggle.
-7. **Budget vs. ROI (Set)** — Payments sits at exactly 80% of its $3,000
-   budget, with Est. value shown alongside.
+7. **Budget vs. ROI (Set)** — Payments' July spend ($2,400) sits at exactly
+   80% of its $3,000 limit, with Est. value shown alongside.
 8. **Top-decile auto-approve (Verify)** — flip the toggle; Carol
    auto-approves instantly, Felix ("High cost") correctly stays pending.
 9. **Search + reset** — search filters the user table (with an empty state

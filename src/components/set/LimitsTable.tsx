@@ -5,10 +5,9 @@ import { ColumnHeaderTooltip } from '@/components/shared/ColumnHeaderTooltip'
 import { getDisplayName, seedData } from '@/data/seed'
 import type { LimitScope } from '@/data/types'
 import { JULY_RANGE } from '@/lib/dateRanges'
-import { formatCurrency, formatPercent } from '@/lib/format'
+import { formatCurrency } from '@/lib/format'
 import {
   allUserEmails,
-  costPerMergedPR,
   effectiveSpendLimit,
   limitOverrideKey,
   suggestedLimit,
@@ -25,8 +24,6 @@ const COLUMN_DEFINITIONS = {
   scope: 'Whether this limit applies org-wide as the default, to a whole group, or to one individual.',
   limit: 'The monthly spend cap for this scope. Click the value to edit it.',
   julSpend: "Net spend attributable to this scope in July, the current month-to-date period.",
-  pctOfBudget: 'July spend as a percentage of the limit. "No cap set" when this scope has no group-level limit of its own.',
-  costPerPr: 'Claude Code net spend ÷ PRs merged this scope produced in July.',
   suggestedLimit: 'Cost per PR merged × PRs merged this scope × 1.15 headroom — what it costs to sustain this month’s output going forward, not a reward for good behavior.',
   estValue: 'Estimated dollar value delivered this month (Claude Code, Chat, Cowork, and Designs combined), using the ROI calculator assumptions from the See tab.',
 }
@@ -132,12 +129,6 @@ export function LimitsTable() {
                 <ColumnHeaderTooltip label="Jul spend" definition={COLUMN_DEFINITIONS.julSpend} />
               </TableHead>
               <TableHead className="text-right">
-                <ColumnHeaderTooltip label="% of budget" definition={COLUMN_DEFINITIONS.pctOfBudget} />
-              </TableHead>
-              <TableHead className="text-right">
-                <ColumnHeaderTooltip label="Cost / PR merged" definition={COLUMN_DEFINITIONS.costPerPr} />
-              </TableHead>
-              <TableHead className="text-right">
                 <ColumnHeaderTooltip label="Suggested limit" definition={COLUMN_DEFINITIONS.suggestedLimit} />
               </TableHead>
               <TableHead className="text-right">
@@ -160,7 +151,6 @@ export function LimitsTable() {
                       ),
                     )
                   : totalNetSpend(seedData, row.metricScope, JULY_RANGE)
-              const cpo = costPerMergedPR(seedData, row.metricScope, JULY_RANGE)
               const suggested = suggestedLimit(seedData, row.metricScope, JULY_RANGE)
               const estValue = totalEstimatedValueUsd(
                 seedData,
@@ -168,10 +158,6 @@ export function LimitsTable() {
                 overlay.roiOverrides,
                 JULY_RANGE,
               )
-              // An unset group has no real group-level cap to measure
-              // against — comparing its combined spend to the per-user org
-              // default would overstate how "over budget" it looks.
-              const pctOfBudget = row.unset || row.currentAmount <= 0 ? null : julySpend / row.currentAmount
               return (
                 <TableRow key={`${row.scope}:${row.target}`}>
                   <TableCell className="max-w-md align-top whitespace-normal">
@@ -208,18 +194,6 @@ export function LimitsTable() {
                     {row.scope === 'org' && (
                       <span className="block text-xs text-muted-foreground">highest user</span>
                     )}
-                  </TableCell>
-                  <TableCell className="text-right align-top">
-                    {pctOfBudget === null ? (
-                      <span className="text-muted-foreground">No cap set</span>
-                    ) : (
-                      <span className={pctOfBudget >= 0.8 ? 'font-semibold text-warning' : undefined}>
-                        {formatPercent(pctOfBudget, 0)}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right align-top">
-                    {cpo === null ? 'N/A' : formatCurrency(cpo)}
                   </TableCell>
                   <TableCell className="text-right align-top">
                     {suggested === null ? 'N/A' : formatCurrency(suggested)}
