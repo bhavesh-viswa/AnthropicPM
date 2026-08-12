@@ -145,30 +145,21 @@ perUser
   })
 
 console.log('\n=== ROI calculator defaults (See tab, org scope, full window) ===')
-// Mirrors src/lib/roi.ts's 5-category model: Claude Code / Chat / Cowork are
-// real products; File Operations (lines changed on merged Code PRs — a
-// verified signal, unlike raw request volume) and Designs (a fraction of
-// Cowork sessions) are derived categories, not their own spend line.
+// Mirrors src/lib/roi.ts's 4-category model: Claude Code / Chat / Cowork are
+// real products; Designs (a fraction of Cowork sessions) is a derived
+// category, not its own spend line.
 const REQUESTS_PER_UNIT: Partial<Record<SpendRow['product'], number>> = { Chat: 20, Cowork: 30 }
-const LINES_CHANGED_PER_FILE_OPERATION = 60
 const COWORK_REQUESTS_PER_DESIGN = 70
-type RoiCategory = 'Claude Code' | 'Chat' | 'Cowork' | 'File Operations' | 'Designs'
+type RoiCategory = 'Claude Code' | 'Chat' | 'Cowork' | 'Designs'
 const ROI_DEFAULTS: { category: RoiCategory; unit: string; minutes: number; hourlyRate: number }[] = [
   { category: 'Claude Code', unit: 'PR merged', minutes: 150, hourlyRate: 59 },
   { category: 'Chat', unit: 'conversation', minutes: 4, hourlyRate: 60 },
   { category: 'Cowork', unit: 'session', minutes: 30, hourlyRate: 75 },
-  { category: 'File Operations', unit: 'file operation', minutes: 1, hourlyRate: 55 },
   { category: 'Designs', unit: 'design', minutes: 30, hourlyRate: 75 },
 ]
 function roiOutputCount(category: RoiCategory, rows: SpendRow[]): number {
   if (category === 'Claude Code') {
     return matchedOutcomesFor(rows.filter(isCode)).filter((o) => o.state === 'merged').length
-  }
-  if (category === 'File Operations') {
-    const linesChanged = matchedOutcomesFor(rows.filter(isCode))
-      .filter((o) => o.state === 'merged')
-      .reduce((s, o) => s + o.lines_changed, 0)
-    return linesChanged / LINES_CHANGED_PER_FILE_OPERATION
   }
   if (category === 'Designs') {
     const totalRequests = rows.filter((r) => r.product === 'Cowork').reduce((s, r) => s + r.total_requests, 0)

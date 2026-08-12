@@ -28,7 +28,7 @@ const COLUMN_DEFINITIONS = {
   pctOfBudget: 'July spend as a percentage of the limit. "No cap set" when this scope has no group-level limit of its own.',
   costPerPr: 'Claude Code net spend ÷ PRs merged this scope produced in July.',
   suggestedLimit: 'Cost per PR merged × PRs merged this scope × 1.15 headroom — what it costs to sustain this month’s output going forward, not a reward for good behavior.',
-  estValue: 'Estimated dollar value delivered this month (Claude Code, Chat, Cowork, File Operations, and Designs combined), using the ROI calculator assumptions from the See tab.',
+  estValue: 'Estimated dollar value delivered this month (Claude Code, Chat, Cowork, and Designs combined), using the ROI calculator assumptions from the See tab.',
 }
 
 interface LimitRow {

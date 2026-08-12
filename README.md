@@ -29,8 +29,8 @@ seeded, client-side data.
   **Total net spend** and **Est. value** (the north star — dynamically
   computed from the ROI calculator's live assumptions), plus a
   cost-per-PR-merged chart by group. A standalone **ROI calculator** shows
-  all five value categories side by side (Claude Code, Chat, Cowork, File
-  Operations, Designs, plus a total row), admin-editable and live.
+  all four value categories side by side (Claude Code, Chat, Cowork,
+  Designs, plus a total row), admin-editable and live.
 - **Set** — the group & user spend-limits table. Every column header has a
   hover definition. Each row shows the limit next to the ROI it bought this
   month, a suggested limit derived from cost per PR merged, and an
@@ -73,29 +73,24 @@ Mirrors the real Analytics spend export plus the Usage settings surface:
 
 ### ROI calculator (`src/lib/roi.ts`)
 
-Five categories, modeled on the reference Analytics "Estimated time saved"
-panel: three are real products (Claude Code / Chat / Cowork), two are
-derived value categories layered on top of existing activity rather than
-their own spend line (File Operations / Designs). For each,
-`estimated_value_usd` = verified output count × (minutes saved per unit ÷
-60) × hourly rate; `totalEstimatedValueUsd` sums that across all five for a
-single "Est. value" figure. Defaults:
+Four categories, modeled on the reference Analytics "Estimated time saved"
+panel: three are real products (Claude Code / Chat / Cowork), one is a
+derived value category layered on top of existing Cowork activity rather
+than its own spend line (Designs). For each, `estimated_value_usd` =
+verified output count × (minutes saved per unit ÷ 60) × hourly rate;
+`totalEstimatedValueUsd` sums that across all four for a single "Est.
+value" figure. Defaults:
 
 | Category | Unit | Verified output source | Minutes saved / unit | Hourly rate |
 |---|---|---|---|---|
 | Claude Code | PR merged | Merged PRs (real event) | 150 | $59 |
 | Chat | conversation | `total_requests` ÷ 20 | 4 | $60 |
 | Cowork | session | `total_requests` ÷ 30 | 30 | $75 |
-| File Operations | file operation | Lines changed on *merged* Code PRs ÷ 60 | 1 | $55 |
 | Designs | design | Cowork `total_requests` ÷ 70 | 30 | $75 |
 
-File Operations sources its count from lines changed on *merged* PRs
-rather than raw `total_requests`, so an autonomous agent's high-volume,
-high-revert activity doesn't get an outsized credit boost. All fields are
-editable per category in the ROI Calculator card, which recomputes every
-Est. value figure in the app live (See, Set, Verify) and narrows with the
-See tab's product filter (File Operations follows Claude Code, Designs
-follows Cowork).
+All fields are editable per category in the ROI Calculator card, which
+recomputes every Est. value figure in the app live (See, Set, Verify) and
+narrows with the See tab's product filter (Designs follows Cowork).
 
 ## The seeded scenario
 
@@ -116,9 +111,8 @@ Payments' $3,000 group limit regardless of that setting.
 1. **Core story (See)** — Payments' cost-per-PR-merged (~$53) is cheapest,
    tagged "Best ROI"; Growth is priciest (~$126, "Needs attention").
 2. **Product filter narrows everything** — switch to Claude Code/Chat/
-   Cowork; both summary tiles and the table rescope (e.g. Est. value ~$23K
-   → ~$20K on Claude Code alone, which pulls File Operations along with
-   it).
+   Cowork; both summary tiles and the table rescope (e.g. Est. value ~$22K
+   → ~$19K on Claude Code alone).
 3. **ROI calculator is live** — edit any minutes/rate input; Est. value
    recomputes everywhere (See tile, user table, Set, Verify).
 4. **Below-cost highlight** — Felix is the only red Est. value in the user

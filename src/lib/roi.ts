@@ -9,30 +9,22 @@ import { joinCodeSpendToOutcomes, scopedRows } from './metrics'
 // product filter, the user table's per-product spend columns).
 export const ROI_PRODUCTS: Product[] = ['Claude Code', 'Chat', 'Cowork']
 
-// The ROI calculator's rows aren't all real `Product`s — File Operations
-// and Designs are additional value categories (modeled on the reference
-// Analytics "Estimated time saved" panel's 5-category breakdown) derived
-// from existing Claude Code / Cowork activity rather than their own spend
-// line. Kept as a separate id space from `Product` so they're never
+// The ROI calculator's rows aren't all real `Product`s — Designs is an
+// additional value category (modeled on the reference Analytics "Estimated
+// time saved" panel) derived from existing Cowork activity rather than its
+// own spend line. Kept as a separate id space from `Product` so it's never
 // mistaken for something scopedRows/totalNetSpend can filter spend by.
-export type RoiCategoryId = 'Claude Code' | 'Chat' | 'Cowork' | 'File Operations' | 'Designs'
+export type RoiCategoryId = 'Claude Code' | 'Chat' | 'Cowork' | 'Designs'
 
-export const ROI_CATEGORIES: RoiCategoryId[] = [
-  'Claude Code',
-  'Chat',
-  'Cowork',
-  'File Operations',
-  'Designs',
-]
+export const ROI_CATEGORIES: RoiCategoryId[] = ['Claude Code', 'Chat', 'Cowork', 'Designs']
 
 // Which real product each category's Product-filter narrowing follows —
-// File Operations tracks Claude Code activity, Designs tracks Cowork
-// activity, so filtering the See tab to one product also narrows these.
+// Designs tracks Cowork activity, so filtering the See tab to Cowork also
+// narrows it.
 const CATEGORY_PRODUCT: Record<RoiCategoryId, Product> = {
   'Claude Code': 'Claude Code',
   Chat: 'Chat',
   Cowork: 'Cowork',
-  'File Operations': 'Claude Code',
   Designs: 'Cowork',
 }
 
@@ -46,12 +38,11 @@ export interface RoiAssumption {
 // Pre-filled "industry standard" defaults, editable by the admin. The
 // Claude Code and Chat minute figures intentionally match the reference
 // Analytics "Estimated time saved" panel (150 min/PR, 4 min/conversation),
-// as do File Operations and Designs (1 min/file operation, 30 min/design).
+// as does Designs (30 min/design).
 export const DEFAULT_ROI_ASSUMPTIONS: RoiAssumption[] = [
   { id: 'Claude Code', unitLabel: 'PR merged', minutesSavedPerUnit: 150, hourlyRateUsd: 59 },
   { id: 'Chat', unitLabel: 'conversation', minutesSavedPerUnit: 4, hourlyRateUsd: 60 },
   { id: 'Cowork', unitLabel: 'session', minutesSavedPerUnit: 30, hourlyRateUsd: 75 },
-  { id: 'File Operations', unitLabel: 'file operation', minutesSavedPerUnit: 1, hourlyRateUsd: 55 },
   { id: 'Designs', unitLabel: 'design', minutesSavedPerUnit: 30, hourlyRateUsd: 75 },
 ]
 
@@ -65,12 +56,8 @@ const REQUESTS_PER_UNIT: Partial<Record<Product, number>> = {
   Cowork: 30,
 }
 
-// File Operations count from lines changed on *merged* Claude Code PRs
-// (a real, already-verified signal — unlike total_requests, it doesn't
-// reward an autonomous agent's high-volume, high-revert activity with more
-// credit). Designs count from Cowork's total_requests, on the assumption
-// that only a fraction of Cowork sessions produce a distinct artifact.
-const LINES_CHANGED_PER_FILE_OPERATION = 60
+// Designs count from Cowork's total_requests, on the assumption that only
+// a fraction of Cowork sessions produce a distinct artifact.
 const COWORK_REQUESTS_PER_DESIGN = 70
 
 export type RoiOverrideField = 'minutesSavedPerUnit' | 'hourlyRateUsd'
@@ -109,22 +96,15 @@ export function verifiedOutputCount(
   return totalRequests / (REQUESTS_PER_UNIT[product] ?? 1)
 }
 
-// Same idea as verifiedOutputCount, but for the two categories that aren't
-// real products — dispatches to the ROI_PRODUCTS path for the other three
-// so callers can treat all five categories uniformly.
+// Same idea as verifiedOutputCount, but for the one category that isn't a
+// real product — dispatches to the ROI_PRODUCTS path for the other three
+// so callers can treat all four categories uniformly.
 export function categoryOutputCount(
   data: SeedData,
   scope: MetricScope,
   category: RoiCategoryId,
   range?: DateRange,
 ): number {
-  if (category === 'File Operations') {
-    const { matchedOutcomes } = joinCodeSpendToOutcomes(data, { ...scope, product: 'Claude Code' }, range)
-    const linesChanged = matchedOutcomes
-      .filter((o) => o.state === 'merged')
-      .reduce((sum, o) => sum + o.lines_changed, 0)
-    return linesChanged / LINES_CHANGED_PER_FILE_OPERATION
-  }
   if (category === 'Designs') {
     const totalRequests = scopedRows(data, { ...scope, product: 'Cowork' }, range).reduce(
       (sum, r) => sum + r.total_requests,
@@ -148,13 +128,12 @@ export function estimatedValueUsd(
 }
 
 // Combined estimated value across every ROI category (Code + Chat + Cowork
-// + File Operations + Designs) — the single number used wherever a table
-// needs one "Est. value" figure for a scope, rather than a per-category
-// breakdown. When scope.product is set (e.g. the See tab's Product
-// filter), narrows to just the categories tied to that product instead of
-// summing all five — mirrors how totalNetSpend already behaves under a
-// product filter (File Operations follows Claude Code, Designs follows
-// Cowork).
+// + Designs) — the single number used wherever a table needs one
+// "Est. value" figure for a scope, rather than a per-category breakdown.
+// When scope.product is set (e.g. the See tab's Product filter), narrows
+// to just the categories tied to that product instead of summing all four
+// — mirrors how totalNetSpend already behaves under a product filter
+// (Designs follows Cowork).
 export function totalEstimatedValueUsd(
   data: SeedData,
   scope: MetricScope,
