@@ -39,7 +39,8 @@ agree.
   cost-per-PR-merged chart by group. A **product filter** (All / Claude
   Code / Chat / Cowork) scopes both tiles and the table to one product at a
   time — Est. value narrows right along with spend. A standalone **ROI
-  calculator** always shows all three products side by side, with
+  calculator** always shows all five value categories side by side (Claude
+  Code, Chat, Cowork, File Operations, Designs, plus a total row), with
   admin-editable time-saved and hourly-rate assumptions that recompute
   every Est. value figure in the app live. The per-user table breaks spend
   out by product (hover a figure to see that product's verified-output
@@ -104,9 +105,12 @@ MTD figures don't drift with wall-clock time).
   real countable event) — `total_requests` for that product is divided by
   an assumed requests-per-unit factor (20 for Chat, 30 for Cowork) to
   approximate a "conversations" / "sessions" count, since one real
-  conversation or session spans many individual requests. The per-product
-  time-saved and hourly-rate defaults are illustrative industry-standard
-  assumptions, fully editable by the admin.
+  conversation or session spans many individual requests. File Operations
+  and Designs are two further categories layered on top of Claude Code and
+  Cowork activity respectively, rather than distinct seed fields — see the
+  ROI calculator section below for how each is sourced and why. The
+  per-category time-saved and hourly-rate defaults are illustrative
+  industry-standard assumptions, fully editable by the admin.
 
 ### Metrics (`src/lib/metrics.ts`)
 
@@ -140,32 +144,53 @@ MTD figures don't drift with wall-clock time).
 
 ### ROI calculator (`src/lib/roi.ts`)
 
-Per product (Claude Code / Chat / Cowork), `estimated_value_usd` = verified
-output count × (minutes saved per unit ÷ 60) × hourly rate; `totalEstimatedValueUsd`
-sums that across all three products for a single "Est. value" figure.
-Defaults:
+Five categories, modeled on the reference Analytics "Estimated time saved"
+panel: three are real products (Claude Code / Chat / Cowork), two are
+derived value categories layered on top of existing activity rather than
+their own spend line (File Operations / Designs). For each,
+`estimated_value_usd` = verified output count × (minutes saved per unit ÷
+60) × hourly rate; `totalEstimatedValueUsd` sums that across all five for a
+single "Est. value" figure. Defaults:
 
-| Product | Unit | Minutes saved / unit | Hourly rate |
-|---|---|---|---|
-| Claude Code | PR merged | 150 | $65 |
-| Chat | conversation | 4 | $60 |
-| Cowork | session | 30 | $75 |
+| Category | Unit | Verified output source | Minutes saved / unit | Hourly rate |
+|---|---|---|---|---|
+| Claude Code | PR merged | Merged PRs (real event) | 150 | $59 |
+| Chat | conversation | `total_requests` ÷ 20 | 4 | $60 |
+| Cowork | session | `total_requests` ÷ 30 | 30 | $75 |
+| File Operations | file operation | Lines changed on *merged* Code PRs ÷ 60 | 1 | $55 |
+| Designs | design | Cowork `total_requests` ÷ 70 | 30 | $75 |
 
 (The Code and Chat minute figures intentionally match the reference
-Analytics "Estimated time saved" panel's own example numbers. The hourly
-rates are calibrated, not arbitrary — see below.) Both fields are editable
-per product in the See tab's ROI Calculator card; edits are stored as
-overlay overrides and recompute the dollar value immediately everywhere
-it's shown (See, Set, Verify).
+panel's own example numbers, as do File Operations' 1 min/unit and
+Designs' 30 min/unit. The hourly rates and divisors are calibrated, not
+arbitrary — see below.) All fields are editable per category in the See
+tab's ROI Calculator card, which also totals all five into one "Total
+estimated value" row; edits are stored as overlay overrides and recompute
+the dollar value immediately everywhere it's shown (See, Set, Verify).
+Filtering the See tab to one product also narrows File Operations (which
+follows Claude Code) or Designs (which follows Cowork) along with it — a
+Chat-only filter shows neither.
 
-The Claude Code hourly rate is set to $65 (rather than a more generous
-$85+) specifically so the "below cost" highlight has a real example in the
-seeded data: at these defaults, Felix is the only one of the 8 users whose
-total estimated value (Code + Chat + Cowork) comes in under his net spend
-(0.98×) — everyone else clears at least 1.7×. Raising the rate lifts
+File Operations deliberately sources its count from **lines changed on
+merged PRs**, not raw `total_requests`, because Claude Code's
+`total_requests` already reflects an autonomous agent's request volume —
+using it directly would hand the biggest credit boost to exactly the
+noisy, high-revert activity the app is designed to flag.
+
+The Claude Code hourly rate is set to $59 (rather than a more generous
+$85+) specifically so the "below cost" / "High cost" signals have a real
+example in the seeded data, in both places that check them: on the See
+tab, Felix is the only one of the 8 users whose total estimated value (all
+five categories, full Jun–Jul window) comes in under his net spend
+(0.95×) — everyone else clears at least 1.67×. On the Verify tab, which
+compares July-only estimated value against MTD spend for each pending
+credit request, Felix is likewise the only one of the four requesters
+flagged "High cost" ($1,752 estimated value vs. $1,800 MTD spend — the
+other three all clear $2 for every $1 spent). Raising the rate lifts
 everyone's ratio roughly proportionally, so it's easy to push Felix back
-above 1× by editing the assumption live in the ROI Calculator — a good way
-to show the highlight is a real function of the inputs, not hardcoded.
+above 1× in either view by editing the assumption live in the ROI
+Calculator — a good way to show the highlight is a real function of the
+inputs, not hardcoded.
 
 ## The seeded scenario
 
@@ -187,7 +212,8 @@ Payments' $3,000 group limit regardless of that setting.
    tagged "Best ROI"; Growth is priciest (~$126, "Needs attention").
 2. **Product filter narrows everything** — switch to Claude Code/Chat/
    Cowork; both summary tiles and the table rescope (e.g. Est. value ~$23K
-   → ~$21K on Claude Code alone).
+   → ~$20K on Claude Code alone, which pulls File Operations along with
+   it).
 3. **ROI calculator is live** — edit any minutes/rate input; Est. value
    recomputes everywhere (See tile, user table, Set, Verify).
 4. **Below-cost highlight** — Felix is the only red Est. value in the user

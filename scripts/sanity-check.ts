@@ -145,34 +145,53 @@ perUser
   })
 
 console.log('\n=== ROI calculator defaults (See tab, org scope, full window) ===')
+// Mirrors src/lib/roi.ts's 5-category model: Claude Code / Chat / Cowork are
+// real products; File Operations (lines changed on merged Code PRs — a
+// verified signal, unlike raw request volume) and Designs (a fraction of
+// Cowork sessions) are derived categories, not their own spend line.
 const REQUESTS_PER_UNIT: Partial<Record<SpendRow['product'], number>> = { Chat: 20, Cowork: 30 }
-const ROI_DEFAULTS: { product: SpendRow['product']; unit: string; minutes: number; hourlyRate: number }[] = [
-  { product: 'Claude Code', unit: 'PR merged', minutes: 150, hourlyRate: 65 },
-  { product: 'Chat', unit: 'conversation', minutes: 4, hourlyRate: 60 },
-  { product: 'Cowork', unit: 'session', minutes: 30, hourlyRate: 75 },
+const LINES_CHANGED_PER_FILE_OPERATION = 60
+const COWORK_REQUESTS_PER_DESIGN = 70
+type RoiCategory = 'Claude Code' | 'Chat' | 'Cowork' | 'File Operations' | 'Designs'
+const ROI_DEFAULTS: { category: RoiCategory; unit: string; minutes: number; hourlyRate: number }[] = [
+  { category: 'Claude Code', unit: 'PR merged', minutes: 150, hourlyRate: 59 },
+  { category: 'Chat', unit: 'conversation', minutes: 4, hourlyRate: 60 },
+  { category: 'Cowork', unit: 'session', minutes: 30, hourlyRate: 75 },
+  { category: 'File Operations', unit: 'file operation', minutes: 1, hourlyRate: 55 },
+  { category: 'Designs', unit: 'design', minutes: 30, hourlyRate: 75 },
 ]
-function roiOutputCount(product: SpendRow['product'], rows: SpendRow[]): number {
-  if (product === 'Claude Code') {
+function roiOutputCount(category: RoiCategory, rows: SpendRow[]): number {
+  if (category === 'Claude Code') {
     return matchedOutcomesFor(rows.filter(isCode)).filter((o) => o.state === 'merged').length
   }
-  const totalRequests = rows.filter((r) => r.product === product).reduce((s, r) => s + r.total_requests, 0)
-  return totalRequests / (REQUESTS_PER_UNIT[product] ?? 1)
+  if (category === 'File Operations') {
+    const linesChanged = matchedOutcomesFor(rows.filter(isCode))
+      .filter((o) => o.state === 'merged')
+      .reduce((s, o) => s + o.lines_changed, 0)
+    return linesChanged / LINES_CHANGED_PER_FILE_OPERATION
+  }
+  if (category === 'Designs') {
+    const totalRequests = rows.filter((r) => r.product === 'Cowork').reduce((s, r) => s + r.total_requests, 0)
+    return totalRequests / COWORK_REQUESTS_PER_DESIGN
+  }
+  const totalRequests = rows.filter((r) => r.product === category).reduce((s, r) => s + r.total_requests, 0)
+  return totalRequests / (REQUESTS_PER_UNIT[category] ?? 1)
 }
 function roiValue(rows: SpendRow[]): number {
-  return ROI_DEFAULTS.reduce((sum, { product, minutes, hourlyRate }) => {
-    const count = roiOutputCount(product, rows)
+  return ROI_DEFAULTS.reduce((sum, { category, minutes, hourlyRate }) => {
+    const count = roiOutputCount(category, rows)
     return sum + (count * minutes) / 60 * hourlyRate
   }, 0)
 }
-for (const { product, unit, minutes, hourlyRate } of ROI_DEFAULTS) {
-  const count = roiOutputCount(product, spendRows)
+for (const { category, unit, minutes, hourlyRate } of ROI_DEFAULTS) {
+  const count = roiOutputCount(category, spendRows)
   const value = ((count * minutes) / 60) * hourlyRate
   console.log(
-    `${product}: ${Math.round(count).toLocaleString()} ${unit}(s) × ${minutes} min × $${hourlyRate}/hr = $${value.toFixed(2)} estimated value`,
+    `${category}: ${Math.round(count).toLocaleString()} ${unit}(s) × ${minutes} min × $${hourlyRate}/hr = $${value.toFixed(2)} estimated value`,
   )
 }
 
-console.log('\n=== Est. value vs net spend, per user (below-cost highlight check) ===')
+console.log('\n=== Est. value vs net spend, per user (See tab below-cost check, full window) ===')
 for (const u of USERS) {
   const rows = spendRows.filter((r) => r.user_email === u.user_email)
   const spend = rows.reduce((s, r) => s + r.total_net_spend_usd, 0)
@@ -180,6 +199,19 @@ for (const u of USERS) {
   console.log(
     `${u.display_name}: spend=$${spend.toFixed(2)} value=$${value.toFixed(2)} ratio=${(value / spend).toFixed(2)}x${
       value < spend ? '  <-- BELOW COST' : ''
+    }`,
+  )
+}
+
+console.log('\n=== Est. value vs MTD spend, per credit request (Verify tab "High cost" badge check, July only) ===')
+for (const cr of creditRequests) {
+  const rows = spendRows.filter(
+    (r) => r.user_email === cr.user_email && r.date >= '2026-07-01' && r.date <= '2026-07-31',
+  )
+  const value = roiValue(rows)
+  console.log(
+    `${cr.request_id} ${getDisplayName(cr.user_email)}: mtd_spend=$${cr.mtd_spend_usd.toFixed(2)} value=$${value.toFixed(2)}${
+      value < cr.mtd_spend_usd ? '  <-- HIGH COST' : ''
     }`,
   )
 }
